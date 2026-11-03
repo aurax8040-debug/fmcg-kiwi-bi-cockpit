@@ -58,7 +58,7 @@ promoNav.addEventListener('click',()=>openPromoReview(promoActivity,$('fStore').
 renderWeekendPromoCard=function(){const el=$('weekendPromoCard');if(!el)return;const a=promoTools.activities.find(a=>$('fRange').value==='all'||promoMonth(a)===$('fRange').value);if(!a){el.innerHTML='<div class="hint">所选月份无模拟活动。</div>';return;}
  const ids=new Set(view.selectedStores.map(s=>s.store_id)),ps=promoTools.participants(a.activity_id).filter(p=>ids.has(p.store_id));
  const summary=ps.map(p=>promoTools.queryStoreActivity({activity_id:a.activity_id,store_id:p.store_id}));
- el.innerHTML=`<div class="body"><b>${esc(a.activity_name)}</b><br>${a.start_date} 至 ${a.end_date}<br>当前筛选参与 ${ps.length} 家 · 本活动总计70家；其中 ${summary.filter(r=>r.data_status==='PARTIAL').length} 家证据部分缺失。</div><button class="action" ${ps.length?'':'disabled'} onclick="openPromoReview('${a.activity_id}','${ps[0]?.store_id||''}')">查看活动复盘 →</button><div class="hint">已接入POS、TPM、SFA模拟记录；模型与知识检索待联调。</div>`;
+ el.innerHTML=`<div class="body"><b>${esc(a.activity_name)}</b><br>${a.start_date} 至 ${a.end_date}<br>当前筛选参与 ${ps.length} 家 · 本活动总计70家；其中 ${summary.filter(r=>r.data_status==='PARTIAL').length} 家证据部分缺失。</div><button class="action" ${ps.length?'':'disabled'} onclick="openPromoReview('${a.activity_id}','${ps[0]?.store_id||''}')">查看活动复盘 →</button><div class="hint">已接入POS、TPM、SFA模拟记录；AI配置与本次调用状态请在活动复盘中查看。</div>`;
 };
 const beforePromoRender=render;
 render=function(){beforePromoRender();if(page==='promo')renderPromoReview();
@@ -71,9 +71,9 @@ render=function(){beforePromoRender();if(page==='promo')renderPromoReview();
  }
  if(page==='dash'){
   renderWeekendPromoCard();
-  const input=$('inlineChatInput');if(input){input.disabled=true;input.placeholder='先从临促活动入口查询证据，AI待联调';}
+  const input=$('inlineChatInput');if(input){input.disabled=true;input.placeholder='请从活动复盘入口调用AI';}
   document.querySelectorAll('.chat-inline-quick button,.chat-inline .chat-input button').forEach(b=>b.disabled=true);
-  const bot=$('inlineChatBody')?.querySelector('.msg.bot');if(bot)bot.textContent='POS、TPM、SFA模拟数据已关联。可从左侧“临促活动复盘”查询同店同活动证据，模型与知识检索尚未接入。';
+  const bot=$('inlineChatBody')?.querySelector('.msg.bot');if(bot)bot.textContent='POS、TPM、SFA模拟数据已关联。可从左侧“临促活动复盘”查询同店同活动证据，AI配置与本次调用状态请在活动复盘中查看。';
  }
 };
 render();

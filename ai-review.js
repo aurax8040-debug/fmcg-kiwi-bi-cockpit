@@ -7,6 +7,16 @@ function reviewEndpoint(path){
  if(['localhost','127.0.0.1','terminal.local'].includes(location.hostname))return path;
  throw Error('请先连接AI后端。GitHub Pages只托管页面，不能直接保管API密钥。');
 }
+function renderDashboardAI(){
+ if(page!=='dash')return;
+ const body=$('inlineChatBody');if(!body)return;
+ const ready=reviewConnection?.configured;
+ const message=!reviewConnection?'尚未检测到AI后端。请进入活动复盘检查连接；本机完整版需保持启动终端运行。':ready?'AI后端配置就绪。支持同店同活动复盘，点击生成后验证本次DeepSeek调用与知识检索。':'AI后端已响应，但服务端配置尚未齐全。请进入活动复盘查看缺项。';
+ body.innerHTML='<div class="msg bot" role="status">'+esc(message)+'</div>';
+ const quick=document.querySelector('.chat-inline-quick');if(quick){quick.innerHTML='<button class="action" id="dashboardOpenReview">进入AI活动复盘 →</button>'; $('dashboardOpenReview').onclick=()=>openPromoReview(promoActivity,promoStore);}
+ const input=$('inlineChatInput');if(input){input.disabled=true;input.placeholder='当前支持活动复盘，请点击上方入口';}
+ const error=reviewError;if(error){const note=document.createElement('div');note.className='hint';note.textContent=error;body.append(note);}
+}
 function reviewEvidenceHTML(e){return `<details class="promo-details"><summary>${esc(e.id)} · ${esc(e.source)}${e.type==='knowledge'?' · '+esc(e.document_name):''}</summary><pre class="review-pre">${esc(e.type==='knowledge'?e.content:JSON.stringify(e.value,null,2))}</pre></details>`;}
 function reviewAIHTML(r){const a=r.answer;return `<div class="hint">真实调用成功 · ${esc(r.ai.model||(r.ai.provider+' · 配置模型 '+r.ai.configured_model+'，未单独返回模型标识'))} · 请求ID ${esc(r.ai.request_id||'服务未返回')} · ${esc(r.generated_at)}<br>Dify：${r.rag.status==='RETRIEVED'?'检索到'+r.rag.citations.length+'条知识片段':r.rag.status==='NO_HITS'?'检索完成，未命中':'尚未连接知识库'} · Tokens ${r.ai.usage?.total_tokens??'未返回'} · 输出需人工核验</div><p>${esc(a.summary)}</p>${[['facts','已知事实'],['hypotheses','待验证假设'],['actions','建议核查动作']].map(([k,label])=>`<h4>${label}</h4>${a[k].map(v=>`<p>${esc(v.text)} <small>${v.evidenceIds.map(esc).join(' · ')}</small></p>`).join('')||'<p>本次未生成</p>'}`).join('')}<h4>判断边界</h4><ul>${a.limits.map(v=>`<li>${esc(v)}</li>`).join('')}</ul><details class="promo-details"><summary>核对实际返回的业务证据与Dify引用</summary>${r.evidence.map(reviewEvidenceHTML).join('')}</details><details class="promo-details"><summary>查看真实调用轨迹</summary><pre class="review-pre">${esc(JSON.stringify(r.trace,null,2))}</pre></details>`;}
 function renderReviewAI(){
@@ -28,7 +38,7 @@ function renderReviewAI(){
 }
 async function checkReviewConnection(){
  try{const response=await fetch(reviewEndpoint('/api/ai/status'),{cache:'no-store',signal:AbortSignal.timeout(10000)});if(!response.ok)throw Error('AI后端不可用（HTTP '+response.status+'）');const body=await response.json();if(typeof body.deepseek!=='boolean'||typeof body.dify!=='boolean')throw Error('地址未返回本项目AI服务');reviewConnection=body;reviewError=body.configured?'':'服务端尚缺：'+(body.mode==='dify-workflow'?['Dify地址或工作流密钥']:[!body.deepseek&&'DeepSeek密钥',!body.dify&&'Dify知识库地址、ID或密钥']).filter(Boolean).join('、');}
- catch(e){reviewConnection=null;reviewError=e.message;}renderReviewAI();
+ catch(e){reviewConnection=null;reviewError=e.message;}renderReviewAI();renderDashboardAI();
 }
 async function runReviewAI(){
  if(reviewBusy||!reviewConnection?.configured)return;
@@ -40,6 +50,6 @@ async function runReviewAI(){
  finally{reviewBusy=false;renderReviewAI();}
 }
 document.addEventListener('click',e=>{if(page==='promo'&&e.target.closest('#btnAi')){e.preventDefault();e.stopImmediatePropagation();runReviewAI();}},true);
-const beforeReviewAIRender=render;render=function(){beforeReviewAIRender();if(page==='promo')renderReviewAI();else $('btnAi').onclick=null;};
+const beforeReviewAIRender=render;render=function(){beforeReviewAIRender();if(page==='promo')renderReviewAI();else {$('btnAi').onclick=null;renderDashboardAI();}};
 const reviewStyle=document.createElement('style');reviewStyle.textContent='.review-ai{margin-top:16px}.review-ai label{display:block;font-size:12px;color:#55617a;margin:12px 0}.review-ai input,.review-ai textarea{display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #d8e2f4;border-radius:8px;margin-top:5px;background:white;color:#26314e}.review-ai textarea{min-height:76px}.review-ai form{max-width:680px}.review-ai p{font-size:13px;line-height:1.8;white-space:pre-wrap}.review-ai small{display:block;color:#7184a8;overflow-wrap:anywhere}.review-ai h4{font-size:13px;margin:14px 0 5px}.review-pre{max-height:280px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f7fd;padding:12px;font-size:11px}.review-error{color:#b64358;font-size:12px;margin-top:10px}.review-ai button:disabled{opacity:.5}';document.head.append(reviewStyle);
 render();checkReviewConnection();
