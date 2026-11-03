@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>快消智析 · AI经营驾驶舱</title>
+<script src="echarts.min.js"></script>
+<script src="china-map.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
+  :root{
+    --primary:#2f6bff; --bg:#f4f7fc; --card:#ffffff; --line:#e8edf5;
+    --text:#1a2233; --sub:#7a8699; --up:#e34d4d; --down:#2ba471;
+  }
+  body{ background:var(--bg); color:var(--text); display:flex; min-height:100vh; }
+
+  /* ---------- 侧边导航 ---------- */
+  .sidebar{ width:200px; background:#fff; border-right:1px solid var(--line); padding:18px 0; flex-shrink:0; position:sticky; top:0; height:100vh; overflow-y:auto; }
+  .logo{ display:flex; align-items:center; gap:8px; padding:0 20px 18px; font-weight:700; font-size:15px; }
+  .logo .dot{ width:26px; height:26px; border-radius:8px; background:linear-gradient(135deg,#2f6bff,#7a5cff); color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; }
+  .nav-group{ margin-bottom:4px; }
+  .nav-title{ padding:8px 20px; font-size:12px; color:var(--sub); }
+  .nav-item{ padding:9px 20px 9px 28px; font-size:13.5px; color:#4a5568; cursor:pointer; display:flex; align-items:center; gap:8px; border-left:3px solid transparent; }
+  .nav-item:hover{ background:#f5f8ff; }
+  .nav-item.active{ color:var(--primary); background:#eef3ff; border-left-color:var(--primary); font-weight:600; cursor:pointer; }
+  .nav-item .icon{ width:16px; text-align:center; font-size:14px; }
+  .page{ display:none; } .page.active{ display:block; }
+
+  /* ---------- 主区 ---------- */
+  .main{ flex:1; padding:20px 24px; min-width:0; }
+  .topbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .topbar h1{ font-size:18px; }
+  .topbar .sub{ font-size:12px; color:var(--sub); margin-top:3px; }
+  .top-actions{ display:flex; gap:10px; align-items:center; }
+  .pill{ font-size:12px; color:var(--primary); background:#eef3ff; border:1px solid #cfdcff; padding:5px 12px; border-radius:20px; cursor:pointer; }
+  .btn-ai{ background:linear-gradient(135deg,#2f6bff,#7a5cff); color:#fff; border:none; padding:8px 16px; border-radius:8px; font-size:13px; cursor:pointer; }
+
+  .kpi-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:14px; }
+  .kpi{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; display:flex; align-items:center; gap:14px; }
+  .kpi .ico{ width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; flex-shrink:0; }
+  .kpi .label{ font-size:12px; color:var(--sub); }
+  .kpi .val{ font-size:22px; font-weight:700; margin:2px 0; }
+  .kpi .delta{ font-size:11.5px; }
+  .delta.up{ color:var(--up); } .delta.down{ color:var(--down); }
+  .src{ display:inline-block; font-size:10px; padding:1px 5px; border-radius:3px; margin-left:6px; vertical-align:1px; }
+  .src.rule{ background:#fff3e0; color:#b36b00; }
+  .src.ai{ background:#eef3ff; color:var(--primary); }
+  .stock-bar{ background:#f8faff; border:1px solid #e8edf5; border-radius:8px; padding:10px 12px; margin-top:8px; }
+  .stock-bar .row{ display:flex; align-items:center; gap:8px; font-size:12px; color:#55617a; padding:3px 0; }
+  .stock-bar .row b{ color:#1a2233; }
+  .stock-pct{ display:inline-block; min-width:44px; font-weight:700; }
+  .pct-red{ color:#e34d4d; } .pct-orange{ color:#ffa940; } .pct-green{ color:#2ba471; }
+  .bar{ flex:1; height:6px; background:#eef1f7; border-radius:3px; overflow:hidden; }
+  .bar i{ display:block; height:100%; border-radius:3px; }
+
+  .grid{ display:grid; gap:14px; margin-bottom:14px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
+  .card h3{ font-size:14px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center; }
+  .card .hint{ font-size:11.5px; color:var(--sub); margin-bottom:8px; }
+  .chart{ width:100%; }
+  .tag{ font-size:11px; color:var(--primary); background:#eef3ff; border-radius:4px; padding:2px 8px; }
+
+  /* AI 智能解读 */
+  .ai-card{ background:linear-gradient(180deg,#f7f9ff,#ffffff); border:1px solid #d8e3ff; }
+  .ai-card h3{ color:var(--primary); }
+  details{ border-top:1px dashed var(--line); padding:9px 0; }
+  summary{ font-size:13px; cursor:pointer; color:#33415c; list-style:none; display:flex; align-items:center; gap:8px; }
+  summary::before{ content:"▸"; color:var(--primary); transition:.2s; }
+  details[open] summary::before{ transform:rotate(90deg); }
+  details .body{ font-size:12.5px; color:#55617a; line-height:1.8; padding:8px 4px 2px 20px; }
+  details .body b{ color:var(--text); }
+  .mini-tag{ display:inline-block; font-size:11px; background:#eef3ff; color:var(--primary); border-radius:4px; padding:1px 6px; margin-right:6px; }
+  .action{ display:inline-flex; align-items:center; gap:4px; font-size:12px; color:#fff; background:var(--primary); border:none; border-radius:6px; padding:5px 12px; margin:6px 6px 0 0; cursor:pointer; }
+  .action.sec{ background:#fff; color:var(--primary); border:1px solid #cfdcff; }
+  .toast{ position:fixed; bottom:96px; left:50%; transform:translateX(-50%) translateY(8px); background:#1a2233; color:#fff; font-size:12.5px; line-height:1.6; padding:10px 18px; border-radius:10px; z-index:100; opacity:0; transition:opacity .3s, transform .3s; pointer-events:none; max-width:420px; text-align:center; box-shadow:0 6px 20px rgba(20,40,90,.25); }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---------- Chat Bot ---------- */
+  .chat-toggle{ position:fixed; right:26px; bottom:26px; width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg,#2f6bff,#7a5cff); color:#fff; font-size:22px; border:none; cursor:pointer; box-shadow:0 6px 18px rgba(47,107,255,.35); z-index:50; }
+  .chat-panel{ position:fixed; right:26px; bottom:90px; width:360px; height:520px; background:#fff; border-radius:16px; box-shadow:0 12px 40px rgba(20,40,90,.18); display:none; flex-direction:column; z-index:50; overflow:hidden; }
+  .chat-panel.open{ display:flex; }
+  .chat-head{ background:linear-gradient(135deg,#2f6bff,#7a5cff); color:#fff; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; }
+  .chat-head b{ font-size:14px; } .chat-head span{ cursor:pointer; font-size:16px; }
+  .chat-body{ flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; background:#f8faff; }
+  .msg{ max-width:85%; font-size:12.5px; line-height:1.6; padding:9px 12px; border-radius:10px; }
+  .msg.bot{ background:#fff; border:1px solid var(--line); align-self:flex-start; border-top-left-radius:2px; }
+  .msg.user{ background:var(--primary); color:#fff; align-self:flex-end; border-top-right-radius:2px; }
+  .think{ border:1px solid #d8e3ff; background:#f3f7ff; border-radius:8px; margin-bottom:6px; }
+  .think summary{ font-size:12px; padding:6px 10px; color:var(--primary); }
+  .think .body{ font-size:11.5px; color:#55617a; padding:0 10px 8px; line-height:1.7; }
+  .chat-input{ display:flex; gap:8px; padding:12px; border-top:1px solid var(--line); }
+  .chat-input input{ flex:1; border:1px solid var(--line); border-radius:8px; padding:9px 12px; font-size:12.5px; outline:none; }
+  .chat-input button{ background:var(--primary); border:none; color:#fff; border-radius:8px; width:38px; cursor:pointer; }
+
+  /* ---------- 移动端响应式 ---------- */
+  .menu-btn{ display:none; }
+  @media (max-width:820px){
+    body{ display:block; }
+    .sidebar{ position:fixed; left:0; top:0; width:220px; height:100vh; z-index:60; transform:translateX(-100%); transition:transform .25s; box-shadow:2px 0 16px rgba(20,40,90,.15); }
+    .sidebar.open{ transform:translateX(0); }
+    .menu-btn{ display:flex; position:fixed; left:14px; top:14px; width:40px; height:40px; border-radius:10px; background:#fff; border:1px solid var(--line); box-shadow:0 2px 10px rgba(20,40,90,.1); align-items:center; justify-content:center; font-size:20px; z-index:55; cursor:pointer; }
+    .overlay{ display:none; position:fixed; inset:0; background:rgba(20,40,90,.3); z-index:58; }
+    .overlay.show{ display:block; }
+    .main{ padding:66px 12px 20px; }
+    .topbar{ flex-direction:column; align-items:flex-start; gap:12px; }
+    .topbar h1{ font-size:17px; }
+    .top-actions{ flex-wrap:wrap; }
+    .kpi-row{ grid-template-columns:repeat(2,1fr); gap:10px; }
+    .kpi{ padding:12px; gap:10px; }
+    .kpi .ico{ width:38px; height:38px; font-size:17px; }
+    .kpi .val{ font-size:17px; }
+    .grid[style*="grid-template-columns"]{ grid-template-columns:1fr !important; }
+    .card{ padding:14px; }
+    .chat-panel{ right:12px; left:12px; bottom:76px; width:auto; height:64vh; }
+    .chat-toggle{ right:16px; bottom:16px; width:48px; height:48px; }
+  }
+  .sidebar-mask{ display:none; position:fixed; inset:0; background:rgba(20,40,90,.3); z-index:59; }
+  .sidebar-mask.show{ display:block; }
+
+  .body{font-size:12.5px;line-height:1.8;color:#55617a}.notice{font-size:11px;color:#7a8699;margin:0 0 12px;line-height:1.6}.evidence{padding:10px;background:#f5f8ff;border-radius:8px;margin:8px 0}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:8px;text-align:left;border-bottom:1px solid var(--line)}.task-item{padding:14px;border:1px solid var(--line);border-radius:10px;margin-top:10px}.task-item textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;margin-top:8px}.empty{font-size:12px;padding:14px;color:#7a8699}.risk{color:#e34d4d}.hint{line-height:1.6}.topbar{gap:12px;flex-wrap:wrap}.top-actions{flex-wrap:wrap}.card h3{gap:6px;flex-wrap:wrap}.chart{min-width:0}.grid>.card{min-width:0}.task-item .body{overflow-wrap:anywhere}#taskModal{max-height:90vh;overflow:auto}button:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #7a5cff}.delta.up{color:#e34d4d}.delta.down{color:#2ba471}@media(max-width:820px){table{min-width:520px}}
+
+.trend-switch{display:flex;gap:6px;margin:6px 0}.trend-switch .pill{padding:3px 10px}.pill.selected{background:#2f6bff;color:#fff}.focus-line{font-size:12px;line-height:1.8;padding:9px 12px;background:#eef3ff;border-radius:8px;margin-bottom:10px}.case-path{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.case-path span{font-size:11px;background:#eef3ff;color:#2f6bff;padding:4px 8px;border-radius:6px}.field{display:grid;gap:5px;font-size:12px;color:#55617a;margin:8px 0}.field input,.field select,.field textarea{padding:8px;border:1px solid #dbe3f0;border-radius:7px;background:#fff;font-size:12px;min-width:0;width:100%}.field textarea{min-height:65px;resize:vertical}.effect-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.effect-grid .field{margin:4px 0}@media(max-width:420px){.effect-grid{grid-template-columns:1fr}}
+</style>
+<link rel="stylesheet" href="cockpit.css?v=20261013b">
+</head>
+<body>
+
+<button class="menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open');document.getElementById('sideMask').classList.toggle('show')">☰</button>
+<div class="sidebar-mask" id="sideMask" onclick="document.getElementById('sidebar').classList.remove('open');this.classList.remove('show')"></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="logo"><div class="dot">快</div>快消智析平台</div>
+  <div class="nav-group">
+    <div class="nav-title">经营驾驶舱</div>
+    <div class="nav-item active" data-page="dash"><span class="icon">◉</span>经营总览</div>
+  </div>
+  <div class="nav-group nav-secondary" id="secondaryNav">
+    <button class="nav-title nav-toggle" type="button" aria-expanded="false" onclick="const n=document.getElementById('secondaryNav');n.classList.toggle('open');this.setAttribute('aria-expanded',n.classList.contains('open'))">经营数据 / 更多报表 <span>⌄</span></button>
+    <div class="nav-item" data-page="why"><span class="icon">◎</span>为什么是 AI</div>
+    <div class="nav-item" data-page="store"><span class="icon">✓</span>门店与商品分析</div>
+    <div class="nav-item" data-page="ka"><span class="icon">▤</span>KA 客户分析</div>
+    <div class="nav-item" data-page="bi-detail"><span class="icon">▦</span>销售明细</div>
+    <div class="nav-item" data-page="bi-month"><span class="icon">▤</span>月度销售汇总</div>
+    <div class="nav-item" data-page="bi-customer"><span class="icon">▥</span>客户销售汇总</div>
+    <div class="nav-item" data-page="bi-region"><span class="icon">▧</span>战区销售汇总</div>
+    <div class="nav-item" data-page="bi-cate"><span class="icon">▦</span>品类销售分析</div>
+    <div class="nav-item" data-page="budget"><span class="icon">♉</span>Sell-Out 预算跟进</div>
+    <div class="nav-item" data-page="pos"><span class="icon">◱</span>商超云POS数据</div>
+    <div class="nav-item" data-page="ai"><span class="icon">✦</span>AI 归因诊断</div>
+    <div class="nav-item" data-page="brief"><span class="icon">✎</span>每日智能简报</div>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div>
+      <h1 id="pageTitle">数据驾驶舱</h1>
+      <div class="sub" id="pageSub">数据范围：7 个 KA 客户 ｜ 财年累计 04月—次年03月，来源 NKA商超.xlsx</div>
+    </div>
+    <div class="top-actions">
+      <select class="pill" aria-label="时间范围" id="fRange"><option value="7">近 7 天</option><option value="30" selected>近 30 天</option><option value="90">本季度至今</option></select>
+      <select class="pill" aria-label="战区" id="fRegion"><option value="all">全部战区</option><option value="east" selected>华东战区</option><option value="north">华北战区</option><option value="south">华南战区</option></select>
+      <select class="pill" aria-label="KA客户" id="fKa"><option value="all">全部 KA 系统</option></select>
+      <span class="mini-tag" id="fTag" style="cursor:default;">筛选生效中</span>
+      <button class="btn-ai" id="btnAi">✦ 生成 AI 解读</button>
+    </div>
+  </div>
+
+  <div class="notice" id="dataLineage" style="background:#f7f9fd;border:1px solid #e4eaf5;border-radius:9px;padding:9px 13px;"><b>数据口径与更新频次：</b>销售与毛利来自 <b>NKA商超.xlsx</b>（财年累计 04月—次年03月，确认收入口径）。<b>10月/11月数据未录入</b>，按 0 显示。门店数、拜访达成、陈列执行、SKU 明细、费用核销为<b>演示快照</b>，待 SFA/POS 真实数据接入。客户名称变更可能导致周同比不可比。</div>
+  <!-- ============ 页面：数据驾驶舱 ============ -->
+  <section id="page-dash" class="page active">
+  <!-- KPI -->
+  <div class="kpi-row">
+    <div class="kpi"><div class="ico" style="background:#ff9f43">💰</div><div><div class="label">销售额 (元)<span class="src rule">Excel 真实数据</span></div><div class="val" id="kpiSales">4,659,023</div><div class="delta up" id="kpiSalesD">综合毛利率 14.9% ｜ 毛利 69.19 万元</div></div></div>
+    <div class="kpi"><div class="ico" style="background:#2f6bff">📦</div><div><div class="label">销量 (件)<span class="src rule">Excel 真实数据</span></div><div class="val" id="kpiVol">49,637</div><div class="delta up">财年累计 · 7 个 KA 客户</div></div></div>
+    <div class="kpi"><div class="ico" style="background:#7a5cff">🏪</div><div><div class="label">活跃门店<span class="src rule">演示快照</span></div><div class="val" id="kpiStore">— / —</div><div class="delta up">门店档案未接入 · 演示</div></div></div>
+    <div class="kpi"><div class="ico" style="background:#2ba471">👣</div><div><div class="label">拜访达成率<span class="src ai">演示占位</span></div><div class="val" id="kpiVisit">—</div><div class="delta down">SFA 拜访数据未接入</div></div></div>
+  </div>
+
+  <!-- 趋势 -->
+  <div class="grid" style="grid-template-columns:1fr;">
+    <div class="card">
+      <h3>月度销售趋势 <span class="tag">财年累计 04月—03月</span></h3>
+      <div class="hint">02月为旺季峰值（¥167.0 万）；10/11月数据未录入，按 0 显示</div>
+      <div id="chartTrend" class="chart" style="height:266px;"></div>
+    </div>
+  </div>
+
+  <!-- 象限 + 排行 -->
+  <div class="grid" style="grid-template-columns:1.35fr 1fr;">
+    <div class="card">
+      <h3>KA 达成率 × 同比增长 四象限 <span class="tag">气泡=销售额</span></h3>
+      <div class="hint">右上=明星客户（保投入）｜左上=潜力客户（追达成）｜右下=守成客户（防下滑）｜左下=风险客户（AI 预警）</div>
+      <div id="chartQuadrant" class="chart" style="height:300px;"></div>
+    </div>
+    <div class="card">
+      <h3>品类收入排行</h3>
+      <div class="hint">金果贡献 96.3% 收入，为绝对主力品类（真实数据）</div>
+      <div id="chartSku" class="chart" style="height:300px;"></div>
+    </div>
+  </div>
+
+  <!-- AI 智能解读 -->
+  <div class="card ai-card">
+    <h3>✦ AI 智能解读 · 本期经营摘要 <span class="tag" style="margin-left:8px;">基于 POS T+1 + SFA 拜访数据</span></h3>
+    <details open>
+      <summary><b>核心结论</b>：整体达成 64.71%，节奏落后主因是 KA 端 3 个客户未达序时进度</summary>
+      <div class="body">销售额 226.28 万、达成 64.71%。差距集中在 <b>永辉（达成 48.2%）、大润发（53.6%）、华润万家（56.1%）</b>，三家合计缺口 38.6 万，占整体缺口（123.4 万）的 31%。<br>
+      <span class="mini-tag">根因</span>9 月末促销档期费用核销延迟，档期陈列未按时落地（SFA 拜访证据显示执行率仅 72%）。建议：本周内补齐 3 家 KA 的档期陈列追踪任务，并启用费用核销绿色通道。<br>
+      <button class="action" onclick="openTask('display')">→ 生成陈列追踪任务</button>
+      <button class="action sec" onclick="openTask('quickfee')">→ 发起核销快审</button></div>
+    </details>
+    <details>
+      <summary><b>渠道异常</b>：批发渠道占比 17.28% → 21.4%，存在窜货/费用归属风险</summary>
+      <div class="body">批发（DMS）占比环比 +4.1pp，与 KA 动销放缓时间点吻合。初步判断为 <b>部分终端订单转移至批发体系</b>，非真实增量。<br>
+      <span class="mini-tag">建议</span>联动 DMS 对环比增量 TOP5 批发商做流向稽查，交叉验证 KA 端动销下滑的真实原因。<br>
+      <button class="action" onclick="openTask('audit')">→ 生成流向稽查工单</button></div>
+    </details>
+    <details>
+      <summary><b>门店机会</b>：760 家未动销门店中，42% 集中在 C/D 级，可按 RAG 策略分层激活</summary>
+      <div class="body">未动销门店 760 家。按门店分级（A/B/C/D + RAG）：<b>C 级红灯 217 家</b>建议 2 周内专项拜访（主因断货）；<b>D 级 103 家</b>建议评估清退或转经销覆盖；其余绿灯门店靠例行拜访维持。<br><span class="mini-tag">预期</span>激活 C 级红灯门店预计贡献增量 6–8 万/月。<br>
+      <button class="action" onclick="openTask('visit')">→ 下发专项拜访任务</button>
+      <button class="action sec" onclick="openTask('clearance')">→ 生成清退评估清单</button></div>
+    </details>
+  </div>
+  </section>
+
+  <!-- ============ 页面：为什么是 AI ============ -->
+  <section id="page-why" class="page">
+    <div class="card ai-card" style="margin-bottom:14px;">
+      <h3>◎ 产品定位 · 一句话价值主张</h3>
+      <div class="body" style="font-size:13.5px;line-height:1.9;padding:8px 4px;">
+        <b>传统 BI 告诉你「达成了多少」，这个平台回答「为什么没达成、下一步该怎么办」。</b><br>
+        传统 BI 把数据呈现出来就结束了；本平台用 AI 完成从「数据 → 洞察 → 动作」的最后一公里——把 <b>人拉表对账、人工找原因、拍脑袋下任务</b> 三步，收敛成一次归因、一条可执行动作、一个可回看的闭环。
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <h3>◎ AI 场景决策表 <span class="tag">哪些 AI 化 · 哪些不 AI 化 · 为什么</span></h3>
+      <div class="hint">Product Decision：不是所有环节都该上 AI。按「动态判断→Agent / 稳定流程→Workflow / 强约束→Rules / 高风险→Human」四边界收敛</div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:640px;" id="decisionTable">
+        <tr style="background:#f5f8ff;color:#33415c;text-align:left;">
+          <th style="padding:8px 10px;border-bottom:1px solid #e8edf5;">场景</th>
+          <th style="padding:8px 10px;border-bottom:1px solid #e8edf5;">方案</th>
+          <th style="padding:8px 10px;border-bottom:1px solid #e8edf5;">决策</th>
+          <th style="padding:8px 10px;border-bottom:1px solid #e8edf5;">为什么不反过来</th>
+        </tr>
+        <tr><td style="padding:8px 10px;border-bottom:1px solid #e8edf5;"><b>异常归因</b></td><td style="padding:8px 10px;">LLM + 多源证据交叉</td><td style="padding:8px 10px;"><span class="mini-tag">Agent</span>动态判断</td><td style="padding:8px 10px;color:#55617a;">原因组合不固定，规则穷举不完</td></tr>
+        <tr><td style="padding:8px 10px;border-bottom:1px solid #e8edf5;"><b>达成率/环比计算</b></td><td style="padding:8px 10px;">代码计算</td><td style="padding:8px 10px;"><span class="mini-tag" style="background:#fff3e0;color:#b36b00;">Rules</span>强约束</td><td style="padding:8px 10px;color:#55617a;">金额计算必须确定，不让模型算数</td></tr>
+        <tr><td style="padding:8px 10px;border-bottom:1px solid #e8edf5;"><b>任务下发 SFA</b></td><td style="padding:8px 10px;">工作流固化</td><td style="padding:8px 10px;"><span class="mini-tag" style="background:#e8f5e9;color:#2ba471;">Workflow</span>稳定流程</td><td style="padding:8px 10px;color:#55617a;">步骤固定，无需动态规划</td></tr>
+        <tr><td style="padding:8px 10px;border-bottom:1px solid #e8edf5;"><b>费用核销/返利归属</b></td><td style="padding:8px 10px;">人工裁决</td><td style="padding:8px 10px;"><span class="mini-tag" style="background:#fdecea;color:#e34d4d;">Human</span>高风险</td><td style="padding:8px 10px;color:#55617a;">涉及资金与口径，不可逆、必须人治</td></tr>
+        <tr><td style="padding:8px 10px;border-bottom:1px solid #e8edf5;"><b>数据口径解释</b></td><td style="padding:8px 10px;">RAG 检索知识库</td><td style="padding:8px 10px;"><span class="mini-tag">LLM + RAG</span>检索增强</td><td style="padding:8px 10px;color:#55617a;">口径规则可沉淀，检索比生成更可靠</td></tr>
+        <tr><td style="padding:8px 10px;"><b>断货预警</b></td><td style="padding:8px 10px;">库存水位阈值 + LLM 解释</td><td style="padding:8px 10px;"><span class="mini-tag" style="background:#fff3e0;color:#b36b00;">Rules</span>触发 + <span class="mini-tag">AI</span>归因</td><td style="padding:8px 10px;color:#55617a;">阈值触发靠规则保证可靠，断货原因靠 AI 解释</td></tr>
+      </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <h3>◎ 任务落地 + 审核分级 <span class="tag">AI 生成 · 人到哪一步</span></h3>
+      <div class="hint">Human-in-the-loop：AI 只生成「任务草稿」进待审队列，按风险分级由人确认后才真正下发。落点系统沿用佳农真实架构（勤策 365 SFA / DMS / 供应链 / 审批流）</div>
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:640px;" id="reviewTable">
+        <tr style="background:#f5f8ff;color:#33415c;text-align:left;">
+          <th style="padding:8px 10px;border-bottom:1px solid #e8edf5;">动作</th>
+          <th style="padding:8px 10px;border-bottom:1px solid #e8edf5;">落点系统</th>
+          <th style="padding:8px 10px;border-bottom:1px solid #e8edf5;">审核人</th>
+          <th style="padding:8px 10px;border-bottom:1px solid #e8edf5;">自动化等级</th>
+        </tr>
+        <tr><td style="padding:8px 10px;border-bottom:1px solid #e8edf5;"><b>陈列追踪 / 专项拜访任务</b></td><td style="padding:8px 10px;">勤策 365 (SFA)</td><td style="padding:8px 10px;">销售运营确认</td><td style="padding:8px 10px;"><span class="mini-tag" style="background:#e8f5e9;color:#2ba471;">L2</span>AI 生成 · 人确认</td></tr>
+        <tr><td style="padding:8px 10px;border-bottom:1px solid #e8edf5;"><b>紧急补货工单</b></td><td style="padding:8px 10px;">供应链 / 补货中心</td><td style="padding:8px 10px;">供应链核对</td><td style="padding:8px 10px;"><span class="mini-tag" style="background:#e8f5e9;color:#2ba471;">L2</span>AI 生成 · 人确认</td></tr>
+        <tr><td style="padding:8px 10px;border-bottom:1px solid #e8edf5;"><b>流向稽查工单</b></td><td style="padding:8px 10px;">批发 (DMS)</td><td style="padding:8px 10px;">批发项目组</td><td style="padding:8px 10px;"><span class="mini-tag" style="background:#fff3e0;color:#b36b00;">L3</span>执行前确认 · 事后稽查</td></tr>
+        <tr><td style="padding:8px 10px;border-bottom:1px solid #e8edf5;"><b>费用核销快审</b></td><td style="padding:8px 10px;">费用核销审批流</td><td style="padding:8px 10px;">PMO + 财务</td><td style="padding:8px 10px;"><span class="mini-tag" style="background:#fdecea;color:#e34d4d;">L1</span>AI 建议 · 人决策</td></tr>
+        <tr><td style="padding:8px 10px;"><b>门店清退评估清单</b></td><td style="padding:8px 10px;">渠道策略组（人工）</td><td style="padding:8px 10px;">渠道负责人</td><td style="padding:8px 10px;"><span class="mini-tag" style="background:#fdecea;color:#e34d4d;">L1</span>AI 建议 · 人决策</td></tr>
+      </table>
+      </div>
+      <div style="margin-top:10px;font-size:11.5px;color:#7a8699;line-height:1.7;">
+        <b>分级逻辑</b>：L1 高风险（资金 / 不可逆）→ AI 只出建议、人做最终决策；L2 中风险 → AI 生成草稿、人点确认后执行；L3 低风险 → AI 直接预警推送、不阻塞、人事后跟进。
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>◎ 北极星指标与闭环</h3>
+      <div class="hint">Metric Tree：从「看板」到「决策时效」的价值证明</div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:0;">
+        <div class="card" style="box-shadow:none;border:1px solid #e8edf5;">
+          <div style="font-size:12px;color:#7a8699;">北极星指标</div>
+          <div style="font-size:20px;font-weight:700;color:#2f6bff;margin:6px 0;">洞察到动作的时效</div>
+          <div style="font-size:11.5px;color:#55617a;">从「发现异常」到「任务下发」的目标：<b>从 3 天人工 → 次日 08:00 自动</b></div>
+        </div>
+        <div class="card" style="box-shadow:none;border:1px solid #e8edf5;">
+          <div style="font-size:12px;color:#7a8699;">闭环</div>
+          <div style="font-size:13px;color:#33415c;margin-top:6px;line-height:2;">
+            Sense（采集）→ Understand（归因）→ Act（下发任务）→ Observe（回看达成）→ Learn（沉淀口径）
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 页面：KA 客户分析 ============ -->
+  <section id="page-ka" class="page">
+    <div class="grid" style="grid-template-columns:1.4fr 1fr;">
+      <div class="card">
+        <h3>KA 达成率 × 同比增长 四象限 <span class="tag">气泡=销售额</span></h3>
+        <div class="hint">右上=明星客户｜左上=潜力客户｜右下=守成客户｜左下=风险客户</div>
+        <div id="chartQuadrant2" class="chart" style="height:320px;"></div>
+      </div>
+      <div class="card">
+        <h3>KA 达成明细 <span class="tag">7 个 KA</span></h3>
+        <div style="max-height:320px;overflow-y:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;" id="kaTable"></table>
+        </div>
+      </div>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1.15fr;" id="kaMidGrid">
+      <div class="card" id="kaStoreSlot"></div>
+      <div class="card" id="kaTierCard"></div>
+    </div>
+    <div class="card ai-card">
+      <h3>✦ AI 客户洞察</h3>
+      <details open><summary><b>胖东来</b>：达成 95%、同比 +38%，礼盒装供不应求，建议 10 月下旬追加金果礼盒配额</summary>
+      <div class="body">胖东来本月销售额 31 万、达成 95.0%、同比 +38%。SFA 拜访数据显示<b>礼盒陈列缺货率 12%</b>（正常线 8% 以内），主因配额未随季节需求上调。<br><span class="mini-tag">建议</span>下周配额会议追加 3,000 份金果礼盒，预计贡献增量 4.5 万。</div></details>
+      <details><summary><b>永辉 / 大润发 / 华润万家</b>：三家合计缺口 38.6 万，占整体缺口 31%</summary>
+      <div class="body">达成 48–56%，序时进度落后。根因为 9 月末档期费用核销延迟 → 档期陈列执行率仅 72%（SFA 证据）。<br><span class="mini-tag">建议</span>本周补齐档期陈列追踪任务 + 费用核销绿色通道。</div></details>
+    </div>
+  </section>
+
+  <!-- ============ 页面：终端门店运营 ============ -->
+  <section id="page-store" class="page">
+    <div class="kpi-row">
+      <div class="kpi"><div class="ico" style="background:#2ba471">🏪</div><div><div class="label">可控门店<span class="src rule">SFA 拜访明细</span></div><div class="val">514 / 533</div><div class="delta up">有佳沛金绿果售卖占比 96.4% ↑</div></div></div>
+      <div class="kpi"><div class="ico" style="background:#ffa940">★</div><div><div class="label">完美门店<span class="src rule">得分≥80</span></div><div class="val">428 / 514</div><div class="delta up">达标率 83.3% ↑</div></div></div>
+      <div class="kpi"><div class="ico" style="background:#2f6bff">✓</div><div><div class="label">拜访完成<span class="src rule">SFA 状态</span></div><div class="val">99.1%</div><div class="delta">528/533 已完成 · 83 名拜访人 · 468 家门店</div></div></div>
+      <div class="kpi"><div class="ico" style="background:#e34d4d">📍</div><div><div class="label">定位偏差异常<span class="src rule">抵达/离开 &gt;500米</span></div><div class="val">21.3%</div><div class="delta down">221 / 1,036 次登记超 500 米 ↓ 需核查</div></div></div>
+    </div>
+    <div class="card">
+      <h3>省份达成情况 <span class="tag">完美门店达标率 · 拜访 TOP12 省</span></h3>
+      <div class="hint">2026-09-28 至 10-03 · 533 次拜访 · 达标率 = 完美门店得分≥80 占比（<span style="color:#2ba471">■ ≥90%</span> <span style="color:#ffa940">■ 75–89%</span> <span style="color:#e34d4d">■ &lt;75%</span>）</div>
+      <div class="sfa-prov">
+        <div class="prow"><span class="pname">上海市</span><div class="pbar"><i style="width:94%;background:#2ba471"></i></div><b>94%</b><small>83/88</small></div>
+        <div class="prow"><span class="pname">河北省</span><div class="pbar"><i style="width:97%;background:#2ba471"></i></div><b>97%</b><small>28/29</small></div>
+        <div class="prow"><span class="pname">浙江省</span><div class="pbar"><i style="width:96%;background:#2ba471"></i></div><b>96%</b><small>45/47</small></div>
+        <div class="prow"><span class="pname">江苏省</span><div class="pbar"><i style="width:95%;background:#2ba471"></i></div><b>95%</b><small>20/21</small></div>
+        <div class="prow"><span class="pname">四川省</span><div class="pbar"><i style="width:94%;background:#2ba471"></i></div><b>94%</b><small>16/17</small></div>
+        <div class="prow"><span class="pname">北京市</span><div class="pbar"><i style="width:84%;background:#ffa940"></i></div><b>84%</b><small>43/51</small></div>
+        <div class="prow"><span class="pname">广东省</span><div class="pbar"><i style="width:77%;background:#ffa940"></i></div><b>77%</b><small>30/39</small></div>
+        <div class="prow"><span class="pname">天津市</span><div class="pbar"><i style="width:79%;background:#ffa940"></i></div><b>79%</b><small>46/58</small></div>
+        <div class="prow"><span class="pname">山东省</span><div class="pbar"><i style="width:76%;background:#ffa940"></i></div><b>76%</b><small>22/29</small></div>
+        <div class="prow"><span class="pname">湖北省</span><div class="pbar"><i style="width:75%;background:#ffa940"></i></div><b>75%</b><small>12/16</small></div>
+        <div class="prow"><span class="pname">贵州省</span><div class="pbar"><i style="width:73%;background:#e34d4d"></i></div><b>73%</b><small>11/15</small></div>
+        <div class="prow"><span class="pname">重庆市</span><div class="pbar"><i style="width:44%;background:#e34d4d"></i></div><b>44%</b><small>30/68</small></div>
+      </div>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1fr 1fr;">
+      <div class="card">
+        <h3>门店等级 <span class="tag">拜访覆盖</span></h3>
+        <div class="hint">530 家门店 · 级别按 SFA 客户档案</div>
+        <div class="sfa-prov">
+          <div class="prow"><span class="pname" style="min-width:64px">E 级</span><div class="pbar"><i style="width:43%;background:#b6c4df"></i></div><b>161</b><small></small></div>
+          <div class="prow"><span class="pname" style="min-width:64px">A 级</span><div class="pbar"><i style="width:21%;background:#4877ef"></i></div><b>77</b><small></small></div>
+          <div class="prow"><span class="pname" style="min-width:64px">D 级</span><div class="pbar"><i style="width:16%;background:#b6c4df"></i></div><b>61</b><small></small></div>
+          <div class="prow"><span class="pname" style="min-width:64px">B 级</span><div class="pbar"><i style="width:9%;background:#8a72e3"></i></div><b>34</b><small></small></div>
+          <div class="prow"><span class="pname" style="min-width:64px">C 级</span><div class="pbar"><i style="width:8%;background:#49b6b5"></i></div><b>28</b><small></small></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>分销执行 <span class="tag">在售门店口径</span></h3>
+        <div class="hint">514 家在售门店 · 金果/绿果分销覆盖</div>
+        <div class="sfa-prov">
+          <div class="prow"><span class="pname" style="min-width:64px">金果分销</span><div class="pbar"><i style="width:95.9%;background:#2ba471"></i></div><b>95.9%</b><small>493/514</small></div>
+          <div class="prow"><span class="pname" style="min-width:64px">绿果分销</span><div class="pbar"><i style="width:87%;background:#ffa940"></i></div><b>87.0%</b><small>447/514</small></div>
+        </div>
+        <div class="body" style="margin-top:10px">绿果缺口 <b>46 家</b>门店；必分销未陈列集中在同批门店（273 条下一步行动）。</div>
+      </div>
+      <div class="card">
+        <h3>陈列管理 <span class="tag">长促与水位</span></h3>
+        <div class="hint">长促门店与佳沛陈列面积水位</div>
+        <div class="sfa-prov">
+          <div class="prow"><span class="pname" style="min-width:64px">长促门店</span><div class="pbar"><i style="width:4.9%;background:#db973a"></i></div><b>25 家</b><small>4.9%</small></div>
+          <div class="prow"><span class="pname" style="min-width:64px">陈列面积</span><div class="pbar"><i style="width:59%;background:#4877ef"></i></div><b>14.8㎡</b><small>均值</small></div>
+        </div>
+        <div class="body" style="margin-top:10px">拜访用时均值 <b>50.2 分钟/次</b>；陈列面积不足与价格标签问题需现场证据确认后整改。</div>
+      </div>
+    </div>
+    <div class="card ai-card">
+      <h3>✦ AI 拜访洞察 <span class="tag">规则识别 · 原因待核实</span></h3>
+      <details open>
+        <summary><b>重庆达标率 44%</b>：68 次拜访仅 30 家达标，是全国最低，建议优先复制华东陈列标准</summary>
+        <div class="body">重庆拜访量全国第二（68 次）但完美门店达标率仅 44%，与其余 TOP 省份（73–97%）差距明显。<br><span class="mini-tag">建议</span>核查当地必分销 SKU 覆盖与陈列面积（均值 14.8㎡ 以下的门店占比），生成专项辅导任务；先核对现场照片证据，再定位是执行问题还是门店结构问题。</div>
+      </details>
+      <details>
+        <summary><b>定位偏差 21.3%</b>：221 次抵达/离开登记超 500 米，需区分信号干扰与代打卡</summary>
+        <div class="body">定位偏差只是异常信号，不能直接认定作弊：商圈楼宇 GPS 漂移、室内登记都会触发。<br><span class="mini-tag">核查路径</span>先比对偏差记录与拜访照片、拜访用时（均值 50.2 分钟）是否自洽；用时与照片正常的高偏差记录优先按设备问题处理，用时异常短的再人工复核。</div>
+      </details>
+      <details>
+        <summary><b>绿果分销 87.0%</b>：低于金果 8.9pp，273 条下一步行动集中在同批门店</summary>
+        <div class="body">金果分销 95.9% / 绿果分销 87.0%，缺口 46 家门店。下一步行动中陈列、商品、价格三类问题高度重合（273 条），说明是同一批执行薄弱门店，不是三类独立问题。<br><span class="mini-tag">建议</span>按门店聚合行动项，一次拜访带一张整改清单，避免多任务重复打扰门店。</div>
+      </details>
+    </div>
+  </section>
+
+
+
+
+
+
+
+  <!-- ============ 页面：BI 销售明细 ============ -->
+  <!-- ============ 页面：BI 月度销售汇总 ============ -->
+  <!-- ============ 页面：BI 客户销售汇总 ============ -->
+  <!-- ============ 页面：BI 战区销售汇总 ============ -->
+  <!-- ============ 页面：BI 品类销售分析 ============ -->
+
+  <!-- ============ 页面：AI 归因诊断 ============ -->
+  <section id="page-ai" class="page">
+    <div class="card ai-card" style="margin-bottom:14px;">
+      <h3>✦ 本期异常归因（自动扫描 · 10-12 08:00）</h3>
+      <div class="hint">扫描范围：销售达成 / 渠道结构 / 门店动销 / 拜访执行 / 费用核销，共 5 条因果链</div>
+      <details open><summary><b>链路 1</b>：KA 达成落后的缺口（整体 123.4 万）31% 来自 3 家客户档期执行问题</summary>
+      <div class="body">证据链：核销滞留单（DMS）→ SFA 陈列执行率 72% → 三家达成 48–56%。置信依据：时间线吻合 + 拜访照片证据 + 核销流水，非模型猜测。<br><span class="mini-tag">动作</span>已生成任务草稿，待销售运营确认后下发。<br>
+      <button class="action" onclick="openTask('chain1')">→ 确认并下发任务</button></div></details>
+      <details><summary><b>链路 2</b>：批发渠道占比 +4.1pp，疑似终端订单转移而非真实增量</summary>
+      <div class="body">证据：批发环比增量 TOP5 商户中 3 家与 KA 门店地址重合。建议联动 DMS 流向稽查，本平台仅做交叉预警、不越权改批发口径。<br>
+      <button class="action" onclick="openTask('audit')">→ 生成稽查工单</button></div></details>
+      <details><summary><b>链路 3</b>：760 家未动销门店的分层激活策略已就绪</summary>
+      <div class="body">C 级红灯 217 家（断货为主）→ 2 周专项拜访；D 级 103 家 → 清退评估。预计激活增量 6–8 万/月。<br>
+      <button class="action" onclick="openTask('all')">→ 一键下发</button></div></details>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;">
+      <div class="card"><h3>异常指标监控</h3><div id="chartAbnMon" class="chart" style="height:240px;"></div></div>
+      <div class="card"><h3>归因置信度分布</h3><div class="hint">高置信=多源证据交叉验证；中置信=单源证据；低置信=模型推断，需人工确认</div><div id="chartConf" class="chart" style="height:240px;"></div></div>
+    </div>
+  </section>
+
+  <!-- ============ 页面：每日智能简报 ============ -->
+  <section id="page-brief" class="page">
+    <div class="card ai-card" style="margin-bottom:14px;">
+      <h3>✦ 2026-10-12 每日简报 <span class="tag" style="margin-left:8px;">每日 08:00 自动生成 · 已推送 12 人</span></h3>
+      <div class="body" style="font-size:13px;line-height:2;padding:6px 2px;">
+        <b>【一句话结论】</b>整体达成 64.71%，缺口集中在 3 家 KA 档期执行问题，批发占比异常需稽查。<br><br>
+        <b>【今日重点】</b><br>
+        1. 永辉/大润发/华润万家档期陈列追踪任务已生成，待销售运营确认下发；<br>
+        2. 批发渠道占比 21.4%（+4.1pp），建议对 TOP5 增量商户做流向稽查；<br>
+        3. 217 家 C 级红灯门店专项拜访方案已就绪，预计贡献 6–8 万/月。<br><br>
+        <b>【昨日数据】</b>销售额 8.2 万 · 拜访 1,247 次 · 达成率 92.3% · 动销门店 3,102 家。<br>
+        <b>【风险】</b>A/B 级门店证据完结率 87.2%，低于 90% 基线，连续 3 日下滑。
+      </div>
+    </div>
+    <div class="card">
+      <h3>简报订阅配置</h3>
+      <div class="hint">支持按角色配置关注指标：KA 负责人看达成与缺口；督导看拜访与陈列；PMO 看核销与风险</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;">
+        <span class="pill">✓ KA 负责人 · 达成率 + 缺口</span><span class="pill">✓ 督导 · 拜访 + 陈列执行</span><span class="pill">✓ PMO · 核销 + 风险预警</span><span class="pill">＋ 新增角色</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 页面：销售明细 ============ -->
+  <section id="page-bi-detail" class="page">
+    <div class="card">
+      <h3>销售明细 <span class="tag">NKA-BI</span></h3>
+      <div class="hint">POS 日明细 · 前 100 行（源表共 113,344 行）</div>
+      <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr><th>月份</th><th>周次</th><th>战区</th><th>客户</th><th>产品</th><th>个数</th><th>规格</th><th>确认收入</th><th>毛利润</th></tr></thead><tbody><tr><td>04月</td><td>15</td><td>华东战区</td><td>盒马</td><td>金果</td><td>18</td><td>18</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>15</td><td>华东战区</td><td>盒马</td><td>金果</td><td>18</td><td>18</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-3,005.50</td></tr><tr><td>04月</td><td>15</td><td>华东战区</td><td>盒马</td><td>金果</td><td>18</td><td>18</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-2,543.12</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">558,715.60</td><td style="text-align:right;font-variant-numeric:tabular-nums;">113,052.21</td></tr><tr><td>04月</td><td>15</td><td>华东战区</td><td>盒马</td><td>金果</td><td>25</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>17</td><td>华东战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">29,539.82</td><td style="text-align:right;font-variant-numeric:tabular-nums;">8,148.30</td></tr><tr><td>04月</td><td>17</td><td>华东战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-164.11</td></tr><tr><td>04月</td><td>17</td><td>华东战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>17</td><td>华东战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,051.38</td><td style="text-align:right;font-variant-numeric:tabular-nums;">565.86</td></tr><tr><td>04月</td><td>18</td><td>华东战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-1,001.07</td></tr><tr><td>04月</td><td>15</td><td>华南战区</td><td>盒马</td><td>金果</td><td>25</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-103.57</td></tr><tr><td>04月</td><td>17</td><td>华南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">46.33</td></tr><tr><td>04月</td><td>17</td><td>华南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">44,309.73</td><td style="text-align:right;font-variant-numeric:tabular-nums;">12,218.13</td></tr><tr><td>04月</td><td>18</td><td>华南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">18,872.66</td><td style="text-align:right;font-variant-numeric:tabular-nums;">5,206.79</td></tr><tr><td>04月</td><td>15</td><td>华南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">19,495.78</td><td style="text-align:right;font-variant-numeric:tabular-nums;">4,480.59</td></tr><tr><td>04月</td><td>17</td><td>华南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-180.52</td></tr><tr><td>04月</td><td>17</td><td>华南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-49.23</td></tr><tr><td>04月</td><td>17</td><td>华南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-196.93</td></tr><tr><td>04月</td><td>17</td><td>华南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-0.01</td></tr><tr><td>04月</td><td>15</td><td>鲁豫战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">1,158.17</td><td style="text-align:right;font-variant-numeric:tabular-nums;">266.82</td></tr><tr><td>04月</td><td>18</td><td>鲁豫战区</td><td>盒马</td><td>金果</td><td>27</td><td>27</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-80.04</td></tr><tr><td>04月</td><td>15</td><td>鲁豫战区</td><td>盒马</td><td>金果</td><td>25</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">739.82</td><td style="text-align:right;font-variant-numeric:tabular-nums;">145.48</td></tr><tr><td>04月</td><td>18</td><td>鲁豫战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-246.17</td></tr><tr><td>04月</td><td>15</td><td>西北战区</td><td>盒马</td><td>金果</td><td>25</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-843.39</td></tr><tr><td>04月</td><td>15</td><td>西北战区</td><td>盒马</td><td>金果</td><td>25</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">-369.91</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-72.82</td></tr><tr><td>04月</td><td>15</td><td>西北战区</td><td>盒马</td><td>金果</td><td>25</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">10,542.39</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,075.33</td></tr><tr><td>04月</td><td>17</td><td>西南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-38.22</td></tr><tr><td>04月</td><td>15</td><td>西南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-169.86</td></tr><tr><td>04月</td><td>17</td><td>西南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>17</td><td>西南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,256.51</td><td style="text-align:right;font-variant-numeric:tabular-nums;">622.38</td></tr><tr><td>04月</td><td>17</td><td>西南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-180.52</td></tr><tr><td>04月</td><td>15</td><td>西南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>17</td><td>西南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">410.28</td><td style="text-align:right;font-variant-numeric:tabular-nums;">113.18</td></tr><tr><td>04月</td><td>17</td><td>西南战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,051.38</td><td style="text-align:right;font-variant-numeric:tabular-nums;">565.89</td></tr><tr><td>04月</td><td>18</td><td>华北战区</td><td>盒马</td><td>金果</td><td>25</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-16.01</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>18</td><td>18</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-154.42</td></tr><tr><td>04月</td><td>18</td><td>华东战区</td><td>盒马</td><td>金果</td><td>22</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-2,806.28</td></tr><tr><td>04月</td><td>18</td><td>长沙战区</td><td>盒马</td><td>金果</td><td>25</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-32.01</td></tr><tr><td>04月</td><td>16</td><td>西南战区</td><td>盒马</td><td>金果</td><td>25</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">184.95</td><td style="text-align:right;font-variant-numeric:tabular-nums;">36.40</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">877.98</td><td style="text-align:right;font-variant-numeric:tabular-nums;">266.13</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">3,315.14</td><td style="text-align:right;font-variant-numeric:tabular-nums;">1,040.72</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>6</td><td>33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">74.68</td><td style="text-align:right;font-variant-numeric:tabular-nums;">14.50</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">323.67</td><td style="text-align:right;font-variant-numeric:tabular-nums;">103.15</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">79.82</td><td style="text-align:right;font-variant-numeric:tabular-nums;">23.31</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>6</td><td>33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-1,320.32</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,544.95</td><td style="text-align:right;font-variant-numeric:tabular-nums;">692.07</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">267.89</td><td style="text-align:right;font-variant-numeric:tabular-nums;">73.89</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>6</td><td>33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-929.01</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-1,457.44</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-25.54</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-203.60</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-115.19</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">7,742.20</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,404.74</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">1,439.91</td><td style="text-align:right;font-variant-numeric:tabular-nums;">375.07</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">7,901.83</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,436.01</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>6</td><td>33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.01</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-40.18</td></tr><tr><td>04月</td><td>18</td><td>华东战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">11,212.84</td><td style="text-align:right;font-variant-numeric:tabular-nums;">3,545.75</td></tr><tr><td>04月</td><td>16</td><td>华东战区</td><td>盒马</td><td>金果</td><td>6</td><td>33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-224.98</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">1,017.25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">345.63</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-227.71</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>6</td><td>33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-1,224.73</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>6</td><td>33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">15,309.17</td><td style="text-align:right;font-variant-numeric:tabular-nums;">4,751.22</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>6</td><td>33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">4,989.45</td><td style="text-align:right;font-variant-numeric:tabular-nums;">1,504.45</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">478.90</td><td style="text-align:right;font-variant-numeric:tabular-nums;">139.58</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-251.48</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-3,313.98</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>6</td><td>33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">6,198.35</td><td style="text-align:right;font-variant-numeric:tabular-nums;">1,713.15</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-976.95</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-429.09</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-251.82</td></tr><tr><td>04月</td><td>18</td><td>华南战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-336.62</td></tr><tr><td>04月</td><td>18</td><td>华南战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">34,731.65</td><td style="text-align:right;font-variant-numeric:tabular-nums;">9,165.82</td></tr><tr><td>04月</td><td>18</td><td>华南战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,779.36</td><td style="text-align:right;font-variant-numeric:tabular-nums;">774.18</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-42.86</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>6</td><td>33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,389.72</td><td style="text-align:right;font-variant-numeric:tabular-nums;">742.43</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.01</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>4</td><td>25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-17.53</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-1,628.26</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>金果</td><td>8</td><td>22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-25.54</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td>04月</td><td>16</td><td>华南战区</td><td>盒马</td><td>红果</td><td>5</td><td>42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,265.69</td><td style="text-align:right;font-variant-numeric:tabular-nums;">626.46</td></tr></tbody></table></div>
+      <div class="map-note">数据口径：NKA商超.xlsx 财年口径（04月—次年03月）；10月/11月未录入计 0；毛利润含加价口径，负值标红。原编码映射：华中战区2-华南→华南战区；西北战区1-西北→西北战区；华北战区1-华北→华北战区；华中战区1-鲁豫→鲁豫战区；西北战区2-长沙→长沙战区。</div>
+    </div>
+  </section>
+
+  <!-- ============ 页面：月度销售汇总 ============ -->
+  <section id="page-bi-month" class="page">
+    <div class="card">
+      <h3>月度销售汇总 <span class="tag">NKA-BI</span></h3>
+      <div class="hint">NKA商超 月度销售汇总（04月—次年03月）</div>
+      <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr><th>月份</th><th>确认收入</th><th>毛利润</th><th>毛利率</th></tr></thead><tbody><tr><td>04月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">846,557.47</td><td style="text-align:right;font-variant-numeric:tabular-nums;">157,020.90</td><td style="text-align:right;font-variant-numeric:tabular-nums;">18.55%</td></tr><tr><td>05月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">699,901.11</td><td style="text-align:right;font-variant-numeric:tabular-nums;">75,878.90</td><td style="text-align:right;font-variant-numeric:tabular-nums;">10.84%</td></tr><tr><td>06月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">921,190.23</td><td style="text-align:right;font-variant-numeric:tabular-nums;">82,518.61</td><td style="text-align:right;font-variant-numeric:tabular-nums;">8.96%</td></tr><tr><td>07月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">24,449.64</td><td style="text-align:right;font-variant-numeric:tabular-nums;">3,166.84</td><td style="text-align:right;font-variant-numeric:tabular-nums;">12.95%</td></tr><tr><td>08月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">112,097.77</td><td style="text-align:right;font-variant-numeric:tabular-nums;">-16,175.89</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-14.43%</td></tr><tr><td>09月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">286,541.03</td><td style="text-align:right;font-variant-numeric:tabular-nums;">41,736.29</td><td style="text-align:right;font-variant-numeric:tabular-nums;">14.57%</td></tr><tr><td>10月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">-3,379.99</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00%</td></tr><tr><td>11月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">-7,100.63</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00%</td></tr><tr><td>12月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">39,452.66</td><td style="text-align:right;font-variant-numeric:tabular-nums;">4,420.52</td><td style="text-align:right;font-variant-numeric:tabular-nums;">11.20%</td></tr><tr><td>01月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">31,120.91</td><td style="text-align:right;font-variant-numeric:tabular-nums;">10,081.35</td><td style="text-align:right;font-variant-numeric:tabular-nums;">32.39%</td></tr><tr><td>02月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">1,669,858.30</td><td style="text-align:right;font-variant-numeric:tabular-nums;">592,128.14</td><td style="text-align:right;font-variant-numeric:tabular-nums;">35.46%</td></tr><tr><td>03月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">27,853.91</td><td style="text-align:right;font-variant-numeric:tabular-nums;">-248,415.68</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-891.85%</td></tr><tr><td style="font-weight:600">合计</td><td style="text-align:right;font-variant-numeric:tabular-nums;">4,659,023.03</td><td style="text-align:right;font-variant-numeric:tabular-nums;">691,879.36</td><td style="text-align:right;font-variant-numeric:tabular-nums;">14.85%</td></tr></tbody></table></div>
+      <div class="map-note">数据口径：NKA商超.xlsx 财年口径（04月—次年03月）；10月/11月未录入计 0；毛利润含加价口径，负值标红。原编码映射：华中战区2-华南→华南战区；西北战区1-西北→西北战区；华北战区1-华北→华北战区；华中战区1-鲁豫→鲁豫战区；西北战区2-长沙→长沙战区。</div>
+    </div>
+  </section>
+
+  <!-- ============ 页面：客户销售汇总 ============ -->
+  <section id="page-bi-customer" class="page">
+    <div class="card">
+      <h3>客户销售汇总 <span class="tag">NKA-BI</span></h3>
+      <div class="hint">SellOut 客户销售汇总（跨战区合计）</div>
+      <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr><th>客户</th><th>确认收入</th><th>毛利润</th><th>毛利率</th><th>销售件</th></tr></thead><tbody><tr><td style="font-weight:600">盒马</td><td style="text-align:right;font-variant-numeric:tabular-nums;">4,520,898.92</td><td style="text-align:right;font-variant-numeric:tabular-nums;">685,716.98</td><td style="text-align:right;font-variant-numeric:tabular-nums;">15.17%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">47,123</td></tr><tr><td style="font-weight:600">永辉</td><td style="text-align:right;font-variant-numeric:tabular-nums;">68,718.96</td><td style="text-align:right;font-variant-numeric:tabular-nums;">7,711.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;">11.22%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">1,276</td></tr><tr><td style="font-weight:600">沃尔玛</td><td style="text-align:right;font-variant-numeric:tabular-nums;">35,410.23</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-795.99</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-2.25%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">431</td></tr><tr><td style="font-weight:600">华润万家</td><td style="text-align:right;font-variant-numeric:tabular-nums;">18,153.98</td><td style="text-align:right;font-variant-numeric:tabular-nums;">3,325.68</td><td style="text-align:right;font-variant-numeric:tabular-nums;">18.32%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">589</td></tr><tr><td style="font-weight:600">大润发</td><td style="text-align:right;font-variant-numeric:tabular-nums;">9,535.88</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-2,915.22</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-30.57%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">136</td></tr><tr><td style="font-weight:600">京东</td><td style="text-align:right;font-variant-numeric:tabular-nums;">5,094.05</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-1,407.32</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-27.63%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">76</td></tr><tr><td style="font-weight:600">家得福</td><td style="text-align:right;font-variant-numeric:tabular-nums;">1,211.01</td><td style="text-align:right;font-variant-numeric:tabular-nums;">244.23</td><td style="text-align:right;font-variant-numeric:tabular-nums;">20.17%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">6</td></tr><tr><td style="font-weight:600">合计</td><td style="text-align:right;font-variant-numeric:tabular-nums;">4,659,023.03</td><td style="text-align:right;font-variant-numeric:tabular-nums;">691,879.36</td><td style="text-align:right;font-variant-numeric:tabular-nums;">14.85%</td><td style="text-align:right;font-variant-numeric:tabular-nums;"></td></tr></tbody></table></div>
+      <div class="map-note">数据口径：NKA商超.xlsx 财年口径（04月—次年03月）；10月/11月未录入计 0；毛利润含加价口径，负值标红。原编码映射：华中战区2-华南→华南战区；西北战区1-西北→西北战区；华北战区1-华北→华北战区；华中战区1-鲁豫→鲁豫战区；西北战区2-长沙→长沙战区。</div>
+    </div>
+  </section>
+
+  <!-- ============ 页面：战区销售汇总 ============ -->
+  <section id="page-bi-region" class="page">
+    <div class="card">
+      <h3>战区销售汇总 <span class="tag">NKA-BI</span></h3>
+      <div class="hint">SellOut 战区销售汇总</div>
+      <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr><th>战区</th><th>确认收入</th><th>毛利润</th><th>毛利率</th><th>销量KG</th></tr></thead><tbody><tr><td style="font-weight:600">华东战区</td><td style="text-align:right;font-variant-numeric:tabular-nums;">3,009,756.61</td><td style="text-align:right;font-variant-numeric:tabular-nums;">510,654.69</td><td style="text-align:right;font-variant-numeric:tabular-nums;">16.97%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">52,086.06</td></tr><tr><td style="font-weight:600">华南战区</td><td style="text-align:right;font-variant-numeric:tabular-nums;">788,140.62</td><td style="text-align:right;font-variant-numeric:tabular-nums;">66,895.33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">8.49%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">15,067.73</td></tr><tr><td style="font-weight:600">西北战区</td><td style="text-align:right;font-variant-numeric:tabular-nums;">339,209.63</td><td style="text-align:right;font-variant-numeric:tabular-nums;">59,169.55</td><td style="text-align:right;font-variant-numeric:tabular-nums;">17.44%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">5,665.65</td></tr><tr><td style="font-weight:600">华北战区</td><td style="text-align:right;font-variant-numeric:tabular-nums;">273,528.71</td><td style="text-align:right;font-variant-numeric:tabular-nums;">26,813.22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">9.80%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">5,340.29</td></tr><tr><td style="font-weight:600">西南战区</td><td style="text-align:right;font-variant-numeric:tabular-nums;">128,014.13</td><td style="text-align:right;font-variant-numeric:tabular-nums;">16,990.99</td><td style="text-align:right;font-variant-numeric:tabular-nums;">13.27%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,275.58</td></tr><tr><td style="font-weight:600">鲁豫战区</td><td style="text-align:right;font-variant-numeric:tabular-nums;">108,284.61</td><td style="text-align:right;font-variant-numeric:tabular-nums;">9,413.05</td><td style="text-align:right;font-variant-numeric:tabular-nums;">8.69%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,014.54</td></tr><tr><td style="font-weight:600">长沙战区</td><td style="text-align:right;font-variant-numeric:tabular-nums;">12,088.72</td><td style="text-align:right;font-variant-numeric:tabular-nums;">1,948.03</td><td style="text-align:right;font-variant-numeric:tabular-nums;">16.11%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">196.54</td></tr><tr><td style="font-weight:600">京东北京仓</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-4.97</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td style="font-weight:600">京东上海仓</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td><td style="text-align:right;font-variant-numeric:tabular-nums;" class="negative">-0.53</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.00</td></tr><tr><td style="font-weight:600">合计</td><td style="text-align:right;font-variant-numeric:tabular-nums;">4,659,023.03</td><td style="text-align:right;font-variant-numeric:tabular-nums;">691,879.36</td><td style="text-align:right;font-variant-numeric:tabular-nums;">14.85%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">82,646.40</td></tr></tbody></table></div>
+      <div class="map-note">数据口径：NKA商超.xlsx 财年口径（04月—次年03月）；10月/11月未录入计 0；毛利润含加价口径，负值标红。原编码映射：华中战区2-华南→华南战区；西北战区1-西北→西北战区；华北战区1-华北→华北战区；华中战区1-鲁豫→鲁豫战区；西北战区2-长沙→长沙战区。</div>
+    </div>
+  </section>
+
+  <!-- ============ 页面：品类销售分析 ============ -->
+  <section id="page-bi-cate" class="page">
+    <div class="card">
+      <h3>品类销售分析 <span class="tag">NKA-BI</span></h3>
+      <div class="hint">SellOut 品类销售分析</div>
+      <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr><th>产品</th><th>确认收入</th><th>毛利润</th><th>毛利率</th><th>收入占比</th></tr></thead><tbody><tr><td style="font-weight:600">金果</td><td style="text-align:right;font-variant-numeric:tabular-nums;">4,486,316.55</td><td style="text-align:right;font-variant-numeric:tabular-nums;">664,064.89</td><td style="text-align:right;font-variant-numeric:tabular-nums;">14.80%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">100.00%</td></tr><tr><td style="font-weight:600">绿果</td><td style="text-align:right;font-variant-numeric:tabular-nums;">129,872.43</td><td style="text-align:right;font-variant-numeric:tabular-nums;">18,247.41</td><td style="text-align:right;font-variant-numeric:tabular-nums;">14.05%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2.81%</td></tr><tr><td style="font-weight:600">红果</td><td style="text-align:right;font-variant-numeric:tabular-nums;">42,834.05</td><td style="text-align:right;font-variant-numeric:tabular-nums;">9,567.06</td><td style="text-align:right;font-variant-numeric:tabular-nums;">22.34%</td><td style="text-align:right;font-variant-numeric:tabular-nums;">0.92%</td></tr></tbody></table></div>
+      <div class="map-note">数据口径：NKA商超.xlsx 财年口径（04月—次年03月）；10月/11月未录入计 0；毛利润含加价口径，负值标红。原编码映射：华中战区2-华南→华南战区；西北战区1-西北→西北战区；华北战区1-华北→华北战区；华中战区1-鲁豫→鲁豫战区；西北战区2-长沙→长沙战区。</div>
+    </div>
+  </section>
+
+
+  <!-- ============ 页面：Sell-Out 预算跟进 ============ -->
+  <section id="page-budget" class="page">
+    <div class="kpi-row">
+      <div class="kpi"><div class="ico" style="background:#2f6bff">🎯</div><div><div class="label">当周预算达成<span class="src rule">Sell-Out 预算</span></div><div class="val">82,396 / 90,249</div><div class="delta up">达成率 91% · 2026 W27 · 佳沛</div></div></div>
+      <div class="kpi"><div class="ico" style="background:#ffa940">💰</div><div><div class="label">当周毛利额 (元)<span class="src rule">Sell-Out 预算</span></div><div class="val">960,359</div><div class="delta up">当周毛利率 9% · 销售额 1,075.0 万</div></div></div>
+      <div class="kpi"><div class="ico" style="background:#7a5cff">📈</div><div><div class="label">Q3 预算进度<span class="src rule">Sell-Out 预算</span></div><div class="val">82,396 / 1,603,389</div><div class="delta up">Q3 QTD 5% · 还差 152.1 万</div></div></div>
+      <div class="kpi"><div class="ico" style="background:#2ba471">⏭</div><div><div class="label">下周预算<span class="src rule">Sell-Out 预算</span></div><div class="val">71,675</div><div class="delta up">环比当周预算 -21%</div></div></div>
+    </div>
+    <div class="notice" style="background:#f7f9fd;border:1px solid #e4eaf5;border-radius:9px;padding:9px 13px;"><b>口径说明：</b>预算跟进为公司 <b>Sell-Out（ERP 出货）口径</b>，按「商超客户系统 → 战区」两级展开；达成率=当周达成/当周预算，≥100% 标绿、90–100% 黄、<90% 红。数据源：SellOut-GF 销量预算分解表（2026 W27，佳沛品牌，演示快照）。</div>
+    <div class="card">
+      <h3>商超客户系统 · 周预算达成 <span class="tag">2026 W27 · 佳沛</span></h3>
+      <div class="hint">绿=达成≥100%｜黄=90–100%｜红=&lt;90%；天猫为线上直营，异常低达成需单独核查（是否预算错配）</div>
+      <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr><th>客户系统</th><th>当周预算</th><th>当周达成</th><th>达成%</th><th>下周预算</th><th>当周销售额</th><th>当周毛利额</th><th>毛利率</th><th>Q3预算</th><th>Q3 QTD</th><th>Q3 QTG</th></tr></thead>
+        <tbody>
+        <tr><td style="font-weight:600">盒马</td><td style="text-align:right">38,177</td><td style="text-align:right">38,692</td><td style="text-align:right;background:#e6f7ec;color:#2ba471;font-weight:600">107%</td><td style="text-align:right">29,178</td><td style="text-align:right">5,051,551</td><td style="text-align:right">373,515</td><td style="text-align:right">7%</td><td style="text-align:right">671,207</td><td style="text-align:right">38,692</td><td style="text-align:right">632,515</td></tr>
+        <tr><td style="font-weight:600">京东</td><td style="text-align:right">16,651</td><td style="text-align:right">9,356</td><td style="text-align:right;background:#fdeaea;color:#e34d4d;font-weight:600">56%</td><td style="text-align:right">12,218</td><td style="text-align:right">1,326,339</td><td style="text-align:right">131,986</td><td style="text-align:right">10%</td><td style="text-align:right">322,312</td><td style="text-align:right">9,356</td><td style="text-align:right">312,956</td></tr>
+        <tr><td style="font-weight:600">美团小象</td><td style="text-align:right">10,196</td><td style="text-align:right">15,038</td><td style="text-align:right;background:#e6f7ec;color:#2ba471;font-weight:600">147%</td><td style="text-align:right">8,262</td><td style="text-align:right">1,847,477</td><td style="text-align:right">182,400</td><td style="text-align:right">10%</td><td style="text-align:right">190,107</td><td style="text-align:right">15,038</td><td style="text-align:right">175,069</td></tr>
+        <tr><td style="font-weight:600">叮咚买菜</td><td style="text-align:right">8,479</td><td style="text-align:right">6,688</td><td style="text-align:right;background:#fdeaea;color:#e34d4d;font-weight:600">79%</td><td style="text-align:right">8,767</td><td style="text-align:right">882,401</td><td style="text-align:right">73,897</td><td style="text-align:right">8%</td><td style="text-align:right">158,639</td><td style="text-align:right">6,688</td><td style="text-align:right">151,951</td></tr>
+        <tr><td style="font-weight:600">永辉</td><td style="text-align:right">5,150</td><td style="text-align:right">4,737</td><td style="text-align:right;background:#fdeaea;color:#e34d4d;font-weight:600">92%</td><td style="text-align:right">4,176</td><td style="text-align:right">630,786</td><td style="text-align:right">77,760</td><td style="text-align:right">12%</td><td style="text-align:right">95,123</td><td style="text-align:right">4,737</td><td style="text-align:right">90,386</td></tr>
+        <tr><td style="font-weight:600">沃尔玛</td><td style="text-align:right">2,536</td><td style="text-align:right">2,376</td><td style="text-align:right;background:#fdeaea;color:#e34d4d;font-weight:600">94%</td><td style="text-align:right">1,988</td><td style="text-align:right">345,616</td><td style="text-align:right">62,705</td><td style="text-align:right">18%</td><td style="text-align:right">47,096</td><td style="text-align:right">2,376</td><td style="text-align:right">44,720</td></tr>
+        <tr><td style="font-weight:600">天猫</td><td style="text-align:right">2,084</td><td style="text-align:right">13</td><td style="text-align:right;background:#fdeaea;color:#e34d4d;font-weight:600">1%</td><td style="text-align:right">1,520</td><td style="text-align:right">2,270</td><td style="text-align:right">369</td><td style="text-align:right">16%</td><td style="text-align:right">36,289</td><td style="text-align:right">13</td><td style="text-align:right">36,276</td></tr>
+        <tr><td style="font-weight:600">七鲜</td><td style="text-align:right">4,433</td><td style="text-align:right">2,986</td><td style="text-align:right;background:#fdeaea;color:#e34d4d;font-weight:600">67%</td><td style="text-align:right">3,411</td><td style="text-align:right">396,695</td><td style="text-align:right">56,706</td><td style="text-align:right">14%</td><td style="text-align:right">35,935</td><td style="text-align:right">2,986</td><td style="text-align:right">32,949</td></tr>
+        <tr><td style="font-weight:600">大润发</td><td style="text-align:right">1,970</td><td style="text-align:right">1,862</td><td style="text-align:right;background:#fdeaea;color:#e34d4d;font-weight:600">95%</td><td style="text-align:right">1,678</td><td style="text-align:right">186,813</td><td style="text-align:right;color:#e34d4d">-7,479</td><td style="text-align:right">-4%</td><td style="text-align:right">36,147</td><td style="text-align:right">1,862</td><td style="text-align:right">34,285</td></tr>
+        <tr><td style="font-weight:600">华润</td><td style="text-align:right">573</td><td style="text-align:right">648</td><td style="text-align:right;background:#e6f7ec;color:#2ba471;font-weight:600">113%</td><td style="text-align:right">477</td><td style="text-align:right">80,005</td><td style="text-align:right">8,500</td><td style="text-align:right">11%</td><td style="text-align:right">10,534</td><td style="text-align:right">648</td><td style="text-align:right">9,886</td></tr>
+        <tr style="font-weight:600;background:#f7f9fd"><td>总计</td><td style="text-align:right">90,249</td><td style="text-align:right">82,396</td><td style="text-align:right;background:#fff3d6;color:#b8860b;font-weight:600">91%</td><td style="text-align:right">71,675</td><td style="text-align:right">10,749,953</td><td style="text-align:right">960,359</td><td style="text-align:right">9%</td><td style="text-align:right">1,603,389</td><td style="text-align:right">82,396</td><td style="text-align:right">1,520,993</td></tr>
+        </tbody></table></div>
+      <div id="chartBudgetRate" class="chart" style="height:260px;"></div>
+    </div>
+    <div class="card">
+      <h3>战区维度 · 周预算达成 <span class="tag">商超 → 战区</span></h3>
+      <div class="hint">战区=下属商超客户汇总；华东承载 60% 预算但毛利最薄（7.6%），华南量小毛利最高（16.7%）——补量优先盯华东档期，保利润盯华南</div>
+      <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr><th>战区</th><th>下属客户系统</th><th>当周预算</th><th>当周达成</th><th>达成%</th><th>下周预算</th><th>当周销售额</th><th>当周毛利额</th><th>毛利率</th><th>Q3预算</th><th>Q3 QTD%</th></tr></thead>
+        <tbody>
+        <tr><td style="font-weight:600">华东战区</td><td>盒马 · 永辉 · 叮咚买菜 · 大润发</td><td style="text-align:right">53,776</td><td style="text-align:right">51,979</td><td style="text-align:right;background:#e6f7ec;color:#2ba471;font-weight:600">97%</td><td style="text-align:right">43,799</td><td style="text-align:right">6,751,551</td><td style="text-align:right">517,693</td><td style="text-align:right">8%</td><td style="text-align:right">961,116</td><td style="text-align:right">5%</td></tr>
+        <tr><td style="font-weight:600">华北战区</td><td>京东 · 美团小象 · 七鲜 · 天猫</td><td style="text-align:right">33,364</td><td style="text-align:right">27,393</td><td style="text-align:right;background:#fdeaea;color:#e34d4d;font-weight:600">82%</td><td style="text-align:right">25,411</td><td style="text-align:right">3,572,781</td><td style="text-align:right">371,461</td><td style="text-align:right">10%</td><td style="text-align:right">584,643</td><td style="text-align:right">5%</td></tr>
+        <tr><td style="font-weight:600">华南战区</td><td>沃尔玛 · 华润</td><td style="text-align:right">3,109</td><td style="text-align:right">3,024</td><td style="text-align:right;background:#e6f7ec;color:#2ba471;font-weight:600">97%</td><td style="text-align:right">2,465</td><td style="text-align:right">425,621</td><td style="text-align:right">71,205</td><td style="text-align:right">17%</td><td style="text-align:right">57,630</td><td style="text-align:right">5%</td></tr>
+        <tr style="font-weight:600;background:#f7f9fd"><td>总计</td><td>10 个客户系统</td><td style="text-align:right">90,249</td><td style="text-align:right">82,396</td><td style="text-align:right;background:#fff3d6;color:#b8860b;font-weight:600">91%</td><td style="text-align:right">71,675</td><td style="text-align:right">10,749,953</td><td style="text-align:right">960,359</td><td style="text-align:right">9%</td><td style="text-align:right">1,603,389</td><td style="text-align:right">5%</td></tr>
+        </tbody></table></div>
+      <div class="map-note">数据口径：Sell-Out（ERP 出货）预算口径 · 2026 W27 · 佳沛品牌演示快照；战区=客户系统归属汇总，与源表「SellOut-GF 销量预算分解表」对应。达成率分层：绿≥100%、黄 90–100%、红&lt;90%。</div>
+    </div>
+    <div class="card">
+      <h3>预算跟进相关报表清单 <span class="tag">报表目录</span></h3>
+      <div class="hint">商超云 Sell-Out 体系内现有报表入口（演示清单，点击仅提示）</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
+        <span class="pill">📄 SellOut-战区销售周报</span><span class="pill">📄 SellOut-战区销售看板</span><span class="pill">📄 SellOut-战区销售日报</span><span class="pill">📄 SellOut-品类销售分析</span><span class="pill">📄 SellOut-GF 销量预算分解表</span><span class="pill">📄 SellOut-全区域预算和达成</span><span class="pill">📄 SellOut-全区域预算和达成汇总</span><span class="pill">📄 SellOut-业务明细表</span><span class="pill">📄 商超云-POS门店和产品追踪</span>
+      </div>
+    </div>
+  </section>
+  <!-- ============ 页面：商超云POS数据 ============ -->
+  <section id="page-pos" class="page">
+    <div class="kpi-row">
+      <div class="kpi"><div class="ico" style="background:#2f6bff">🛒</div><div><div class="label">POS 销售额 (元)<span class="src rule">商超云POS</span></div><div class="val">154,791</div><div class="delta up">2026 全年 · 5 系统 · 消费者购买口径</div></div></div>
+      <div class="kpi"><div class="ico" style="background:#ffa940">🍇</div><div><div class="label">POS 销量 (粒)<span class="src rule">商超云POS</span></div><div class="val">31,758</div><div class="delta up">粒口径 · 与 sell-out「件」区分</div></div></div>
+      <div class="kpi"><div class="ico" style="background:#7a5cff">🏪</div><div><div class="label">动销门店<span class="src rule">商超云POS</span></div><div class="val">55</div><div class="delta up">覆盖 5 大 KA 系统</div></div></div>
+      <div class="kpi"><div class="ico" style="background:#2ba471">📊</div><div><div class="label">明细条数<span class="src rule">商超云POS</span></div><div class="val">500</div><div class="delta up">每系统 100 条 · 2026-01-01 至 12-31</div></div></div>
+    </div>
+    <div class="notice" style="background:#fff7ec;border:1px solid #ffd591;border-radius:9px;padding:9px 13px;"><b>口径区分：</b>本页为 <b>商超云POS 数据（终端消费者购买）</b>，销量单位为「粒」，来源 KA 系统 POS 接口（演示：五系统POS模拟销量.xlsx）。「销售明细」等 NKA-BI 页为公司 <b>Sell-Out（ERP 出货给客户）</b>口径，单位为「件」。两者差额 = 终端库存 / 在途，可用于进销对账与动销核查。</div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;">
+      <div class="card"><h3>按系统汇总 <span class="tag">商超云POS</span></h3>
+        <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr><th>客户系统</th><th>销量(粒)</th><th>销售额(元)</th><th>动销门店</th><th>明细条数</th></tr></thead><tbody><tr><td style="font-weight:600">盒马</td><td style="text-align:right;font-variant-numeric:tabular-nums;">6,515</td><td style="text-align:right;font-variant-numeric:tabular-nums;">30,482</td><td style="text-align:right;font-variant-numeric:tabular-nums;">23</td><td style="text-align:right;font-variant-numeric:tabular-nums;">100</td></tr><tr><td style="font-weight:600">永辉</td><td style="text-align:right;font-variant-numeric:tabular-nums;">6,037</td><td style="text-align:right;font-variant-numeric:tabular-nums;">30,526</td><td style="text-align:right;font-variant-numeric:tabular-nums;">8</td><td style="text-align:right;font-variant-numeric:tabular-nums;">100</td></tr><tr><td style="font-weight:600">大润发</td><td style="text-align:right;font-variant-numeric:tabular-nums;">6,443</td><td style="text-align:right;font-variant-numeric:tabular-nums;">32,389</td><td style="text-align:right;font-variant-numeric:tabular-nums;">8</td><td style="text-align:right;font-variant-numeric:tabular-nums;">100</td></tr><tr><td style="font-weight:600">沃尔玛</td><td style="text-align:right;font-variant-numeric:tabular-nums;">6,168</td><td style="text-align:right;font-variant-numeric:tabular-nums;">29,953</td><td style="text-align:right;font-variant-numeric:tabular-nums;">8</td><td style="text-align:right;font-variant-numeric:tabular-nums;">100</td></tr><tr><td style="font-weight:600">华润</td><td style="text-align:right;font-variant-numeric:tabular-nums;">6,595</td><td style="text-align:right;font-variant-numeric:tabular-nums;">31,442</td><td style="text-align:right;font-variant-numeric:tabular-nums;">8</td><td style="text-align:right;font-variant-numeric:tabular-nums;">100</td></tr></tbody></table></div>
+      </div>
+      <div class="card"><h3>月度趋势 <span class="tag">商超云POS</span></h3>
+        <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr><th>月份</th><th>销量(粒)</th><th>销售额(元)</th></tr></thead><tbody><tr><td>1月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,081</td><td style="text-align:right;font-variant-numeric:tabular-nums;">10,185</td></tr><tr><td>2月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,935</td><td style="text-align:right;font-variant-numeric:tabular-nums;">14,634</td></tr><tr><td>3月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,867</td><td style="text-align:right;font-variant-numeric:tabular-nums;">13,910</td></tr><tr><td>4月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,772</td><td style="text-align:right;font-variant-numeric:tabular-nums;">13,547</td></tr><tr><td>5月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,429</td><td style="text-align:right;font-variant-numeric:tabular-nums;">11,655</td></tr><tr><td>6月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,179</td><td style="text-align:right;font-variant-numeric:tabular-nums;">10,909</td></tr><tr><td>7月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,399</td><td style="text-align:right;font-variant-numeric:tabular-nums;">10,642</td></tr><tr><td>8月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">3,119</td><td style="text-align:right;font-variant-numeric:tabular-nums;">15,422</td></tr><tr><td>9月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">3,230</td><td style="text-align:right;font-variant-numeric:tabular-nums;">17,366</td></tr><tr><td>10月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,620</td><td style="text-align:right;font-variant-numeric:tabular-nums;">11,713</td></tr><tr><td>11月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,664</td><td style="text-align:right;font-variant-numeric:tabular-nums;">11,120</td></tr><tr><td>12月</td><td style="text-align:right;font-variant-numeric:tabular-nums;">2,463</td><td style="text-align:right;font-variant-numeric:tabular-nums;">13,688</td></tr></tbody></table></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Y25 vs Y26 门店等级对比 <span class="tag">NKA商超系统 · YTD</span></h3>
+      <div class="hint">按月均销量分级门店档位：头部档（月均≥10w）门店数与销量双降，长尾档（月均&lt;3w）门店数扩张但单店产出低——渠道在「铺开」而非「做深」</div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;">
+        <div><div class="hint" style="font-weight:600">门店数量对比（家）</div><div id="chartTierStore" class="chart" style="height:240px;"></div></div>
+        <div><div class="hint" style="font-weight:600">销售额（万元）与同比</div><div id="chartTierSales" class="chart" style="height:240px;"></div></div>
+      </div>
+      <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr><th rowspan="2">门店等级</th><th colspan="3" style="text-align:center;border-bottom:1px solid var(--line)">门店数量</th><th colspan="3" style="text-align:center;border-bottom:1px solid var(--line)">Y26 销售额</th><th colspan="2" style="text-align:center;border-bottom:1px solid var(--line)">单店日均销量</th></tr>
+        <tr><th>Y25</th><th>Y26</th><th>同比</th><th>金额/万</th><th>单店日均/元</th><th>销售额同比</th><th>Y26 (TE)</th><th>同比</th></tr></thead>
+        <tbody>
+        <tr><td style="font-weight:600">月均≥14w</td><td style="text-align:right">79</td><td style="text-align:right">23</td><td style="text-align:right;color:#e34d4d">-71%</td><td style="text-align:right">1,212.8</td><td style="text-align:right">5,879</td><td style="text-align:right;color:#e34d4d">-81%</td><td style="text-align:right">33</td><td style="text-align:right;color:#e34d4d">-13%</td></tr>
+        <tr><td style="font-weight:600">14w＞月均≥10w</td><td style="text-align:right">84</td><td style="text-align:right">48</td><td style="text-align:right;color:#e34d4d">-43%</td><td style="text-align:right">1,657.4</td><td style="text-align:right">3,848</td><td style="text-align:right;color:#e34d4d">-56%</td><td style="text-align:right">22</td><td style="text-align:right;color:#e34d4d">-4%</td></tr>
+        <tr><td style="font-weight:600">10w＞月均≥8w</td><td style="text-align:right">73</td><td style="text-align:right">50</td><td style="text-align:right;color:#e34d4d">-32%</td><td style="text-align:right">1,327.8</td><td style="text-align:right">2,918</td><td style="text-align:right;color:#e34d4d">-48%</td><td style="text-align:right">17</td><td style="text-align:right;color:#e34d4d">-6%</td></tr>
+        <tr><td style="font-weight:600">8w＞月均≥5w</td><td style="text-align:right">193</td><td style="text-align:right">166</td><td style="text-align:right;color:#e34d4d">-14%</td><td style="text-align:right">3,115.6</td><td style="text-align:right">2,045</td><td style="text-align:right;color:#e34d4d">-33%</td><td style="text-align:right">11</td><td style="text-align:right;color:#e34d4d">-7%</td></tr>
+        <tr><td style="font-weight:600">5w＞月均≥3w</td><td style="text-align:right">198</td><td style="text-align:right">287</td><td style="text-align:right;color:#2ba471">+45%</td><td style="text-align:right">3,239.9</td><td style="text-align:right">1,266</td><td style="text-align:right;color:#2ba471">+9%</td><td style="text-align:right">7</td><td style="text-align:right;color:#e34d4d">-8%</td></tr>
+        <tr><td style="font-weight:600">3w＞月均≥1w</td><td style="text-align:right">532</td><td style="text-align:right">955</td><td style="text-align:right;color:#2ba471">+80%</td><td style="text-align:right">5,046.7</td><td style="text-align:right">593</td><td style="text-align:right;color:#2ba471">+42%</td><td style="text-align:right">3</td><td style="text-align:right;color:#e34d4d">-4%</td></tr>
+        <tr><td style="font-weight:600">月均＜1w</td><td style="text-align:right">865</td><td style="text-align:right">1,248</td><td style="text-align:right;color:#2ba471">+44%</td><td style="text-align:right">1,687.4</td><td style="text-align:right">166</td><td style="text-align:right;color:#2ba471">+63%</td><td style="text-align:right">1</td><td style="text-align:right;color:#2ba471">+24%</td></tr>
+        <tr style="font-weight:600;background:#f7f9fd"><td>合计</td><td style="text-align:right">2,024</td><td style="text-align:right">2,777</td><td style="text-align:right;color:#2ba471">+37%</td><td style="text-align:right">17,287.7</td><td style="text-align:right">724</td><td style="text-align:right;color:#e34d4d">-30%</td><td style="text-align:right">4</td><td style="text-align:right;color:#e34d4d">-33%</td></tr>
+        </tbody></table></div>
+      <div class="map-note">数据口径：NKA商超系统门店数与销售额 YTD，按月均销量分档；红=下滑、绿=增长（中国市场惯例）。核心结论：门店总数 +37% 但销售额 -30%，增量集中在月均＜3w 的长尾门店，头部 4 档门店数 -71%~-14%、销售额 -81%~-33%，单店日均销量整体 -33%。</div>
+    </div>
+    <div class="card">
+      <h3>POS 明细 <span class="tag">商超云POS</span></h3>
+      <div class="hint">消费者购买明细 · 前 100 行（按日期升序，源数据共 500 行）</div>
+      <div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr><th>日期</th><th>战区</th><th>客户系统</th><th>门店</th><th>产品</th><th>规格</th><th>销量(粒)</th><th>销售额(元)</th></tr></thead><tbody><tr><td>2026-01-01 00:00:00</td><td>华东战区</td><td>永辉</td><td>南京永辉超市(建邺店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">57</td><td style="text-align:right;font-variant-numeric:tabular-nums;">200</td></tr><tr><td>2026-01-01 00:00:00</td><td>华北战区</td><td>大润发</td><td>大润发(天津河西店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">61</td><td style="text-align:right;font-variant-numeric:tabular-nums;">482</td></tr><tr><td>2026-01-03 00:00:00</td><td>华南战区</td><td>永辉</td><td>福州永辉超市(五四北店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">117</td><td style="text-align:right;font-variant-numeric:tabular-nums;">410</td></tr><tr><td>2026-01-03 00:00:00</td><td>华中战区</td><td>沃尔玛</td><td>沃尔玛(武汉光谷店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">48</td><td style="text-align:right;font-variant-numeric:tabular-nums;">379</td></tr><tr><td>2026-01-06 00:00:00</td><td>华南战区</td><td>华润</td><td>华润万家(深圳华强北店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">16</td><td style="text-align:right;font-variant-numeric:tabular-nums;">126</td></tr><tr><td>2026-01-07 00:00:00</td><td>华东战区</td><td>永辉</td><td>南京永辉超市(建邺店)</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">47</td><td style="text-align:right;font-variant-numeric:tabular-nums;">127</td></tr><tr><td>2026-01-08 00:00:00</td><td>华东战区</td><td>大润发</td><td>大润发(杭州滨江店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">78</td><td style="text-align:right;font-variant-numeric:tabular-nums;">616</td></tr><tr><td>2026-01-08 00:00:00</td><td>西北战区</td><td>华润</td><td>华润万家(西安雁塔店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">84</td><td style="text-align:right;font-variant-numeric:tabular-nums;">294</td></tr><tr><td>2026-01-09 00:00:00</td><td>西北战区</td><td>华润</td><td>华润万家(西安雁塔店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">38</td><td style="text-align:right;font-variant-numeric:tabular-nums;">300</td></tr><tr><td>2026-01-10 00:00:00</td><td>华中战区</td><td>沃尔玛</td><td>沃尔玛(武汉光谷店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">44</td><td style="text-align:right;font-variant-numeric:tabular-nums;">154</td></tr><tr><td>2026-01-10 00:00:00</td><td>华东战区</td><td>华润</td><td>华润万家(上海长宁店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">261</td></tr><tr><td>2026-01-11 00:00:00</td><td>华东战区</td><td>大润发</td><td>大润发(苏州园区店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">23</td><td style="text-align:right;font-variant-numeric:tabular-nums;">182</td></tr><tr><td>2026-01-12 00:00:00</td><td>华南战区</td><td>永辉</td><td>福州永辉超市(五四北店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">37</td><td style="text-align:right;font-variant-numeric:tabular-nums;">292</td></tr><tr><td>2026-01-12 00:00:00</td><td>华北战区</td><td>大润发</td><td>大润发(北京丰台店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">76</td><td style="text-align:right;font-variant-numeric:tabular-nums;">600</td></tr><tr><td>2026-01-14 00:00:00</td><td>华东战区</td><td>永辉</td><td>杭州永辉超市(滨江店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">64</td><td style="text-align:right;font-variant-numeric:tabular-nums;">224</td></tr><tr><td>2026-01-14 00:00:00</td><td>华北战区</td><td>大润发</td><td>大润发(济南历下店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">31</td><td style="text-align:right;font-variant-numeric:tabular-nums;">108</td></tr><tr><td>2026-01-15 00:00:00</td><td>华中战区</td><td>大润发</td><td>大润发(郑州二七店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">78</td><td style="text-align:right;font-variant-numeric:tabular-nums;">273</td></tr><tr><td>2026-01-15 00:00:00</td><td>华北战区</td><td>沃尔玛</td><td>沃尔玛(天津和平店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">57</td><td style="text-align:right;font-variant-numeric:tabular-nums;">200</td></tr><tr><td>2026-01-19 00:00:00</td><td>华南战区</td><td>华润</td><td>华润万家(深圳华强北店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">62</td><td style="text-align:right;font-variant-numeric:tabular-nums;">490</td></tr><tr><td>2026-01-20 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马鲜生环创店</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">115</td><td style="text-align:right;font-variant-numeric:tabular-nums;">402</td></tr><tr><td>2026-01-21 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马鲜生宝乐汇印象城店</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">17</td><td style="text-align:right;font-variant-numeric:tabular-nums;">134</td></tr><tr><td>2026-01-21 00:00:00</td><td>西北战区</td><td>华润</td><td>华润万家(西安碑林店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">120</td><td style="text-align:right;font-variant-numeric:tabular-nums;">420</td></tr><tr><td>2026-01-22 00:00:00</td><td>华南战区</td><td>沃尔玛</td><td>沃尔玛(广州天河店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">47</td><td style="text-align:right;font-variant-numeric:tabular-nums;">164</td></tr><tr><td>2026-01-23 00:00:00</td><td>西北战区</td><td>华润</td><td>华润万家(西安雁塔店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">63</td><td style="text-align:right;font-variant-numeric:tabular-nums;">220</td></tr><tr><td>2026-01-24 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海超盒算NB浦东新德西路店</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">72</td><td style="text-align:right;font-variant-numeric:tabular-nums;">569</td></tr><tr><td>2026-01-25 00:00:00</td><td>华东战区</td><td>盒马</td><td>南通盒马鲜生宝声店</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">66</td><td style="text-align:right;font-variant-numeric:tabular-nums;">178</td></tr><tr><td>2026-01-26 00:00:00</td><td>华东战区</td><td>盒马</td><td>南京盒马鲜生湖南路店</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">24</td><td style="text-align:right;font-variant-numeric:tabular-nums;">190</td></tr><tr><td>2026-01-26 00:00:00</td><td>华东战区</td><td>华润</td><td>华润万家(上海长宁店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">49</td><td style="text-align:right;font-variant-numeric:tabular-nums;">172</td></tr><tr><td>2026-01-27 00:00:00</td><td>华南战区</td><td>永辉</td><td>福州永辉超市(金山店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">94</td><td style="text-align:right;font-variant-numeric:tabular-nums;">329</td></tr><tr><td>2026-01-28 00:00:00</td><td>华南战区</td><td>永辉</td><td>福州永辉超市(金山店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">40</td><td style="text-align:right;font-variant-numeric:tabular-nums;">140</td></tr><tr><td>2026-01-30 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马鲜生宝地店</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">33</td><td style="text-align:right;font-variant-numeric:tabular-nums;">261</td></tr><tr><td>2026-01-30 00:00:00</td><td>华东战区</td><td>沃尔玛</td><td>沃尔玛(上海浦东店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">75</td><td style="text-align:right;font-variant-numeric:tabular-nums;">262</td></tr><tr><td>2026-01-30 00:00:00</td><td>华东战区</td><td>华润</td><td>华润万家(上海长宁店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">36</td><td style="text-align:right;font-variant-numeric:tabular-nums;">126</td></tr><tr><td>2026-01-31 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马mini川沙店</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">117</td><td style="text-align:right;font-variant-numeric:tabular-nums;">410</td></tr><tr><td>2026-01-31 00:00:00</td><td>华南战区</td><td>永辉</td><td>福州永辉超市(五四北店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">62</td><td style="text-align:right;font-variant-numeric:tabular-nums;">490</td></tr><tr><td>2026-02-01 00:00:00</td><td>华东战区</td><td>盒马</td><td>杭州盒马鲜生萧山万象汇店</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">60</td><td style="text-align:right;font-variant-numeric:tabular-nums;">210</td></tr><tr><td>2026-02-01 00:00:00</td><td>华南战区</td><td>永辉</td><td>福州永辉超市(五四北店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">48</td><td style="text-align:right;font-variant-numeric:tabular-nums;">168</td></tr><tr><td>2026-02-01 00:00:00</td><td>华东战区</td><td>沃尔玛</td><td>沃尔玛(上海浦东店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">67</td><td style="text-align:right;font-variant-numeric:tabular-nums;">529</td></tr><tr><td>2026-02-02 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马鲜生五月花广场店</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">40</td><td style="text-align:right;font-variant-numeric:tabular-nums;">316</td></tr><tr><td>2026-02-02 00:00:00</td><td>华东战区</td><td>沃尔玛</td><td>沃尔玛(上海浦东店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">68</td><td style="text-align:right;font-variant-numeric:tabular-nums;">537</td></tr><tr><td>2026-02-02 00:00:00</td><td>华东战区</td><td>华润</td><td>华润万家(上海长宁店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">54</td><td style="text-align:right;font-variant-numeric:tabular-nums;">427</td></tr><tr><td>2026-02-03 00:00:00</td><td>华东战区</td><td>盒马</td><td>南通盒马鲜生吾悦广场店</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">32</td><td style="text-align:right;font-variant-numeric:tabular-nums;">253</td></tr><tr><td>2026-02-04 00:00:00</td><td>华南战区</td><td>永辉</td><td>福州永辉超市(五四北店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">69</td><td style="text-align:right;font-variant-numeric:tabular-nums;">545</td></tr><tr><td>2026-02-04 00:00:00</td><td>华中战区</td><td>华润</td><td>华润万家(郑州金水店)</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">107</td><td style="text-align:right;font-variant-numeric:tabular-nums;">289</td></tr><tr><td>2026-02-05 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马鲜生宝乐汇印象城店</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">150</td><td style="text-align:right;font-variant-numeric:tabular-nums;">405</td></tr><tr><td>2026-02-06 00:00:00</td><td>华南战区</td><td>永辉</td><td>福州永辉超市(金山店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">16</td><td style="text-align:right;font-variant-numeric:tabular-nums;">126</td></tr><tr><td>2026-02-07 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马鲜生大华虎城店</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">132</td><td style="text-align:right;font-variant-numeric:tabular-nums;">356</td></tr><tr><td>2026-02-07 00:00:00</td><td>华北战区</td><td>沃尔玛</td><td>沃尔玛(北京海淀店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">21</td><td style="text-align:right;font-variant-numeric:tabular-nums;">166</td></tr><tr><td>2026-02-07 00:00:00</td><td>西北战区</td><td>华润</td><td>华润万家(西安雁塔店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">58</td><td style="text-align:right;font-variant-numeric:tabular-nums;">203</td></tr><tr><td>2026-02-09 00:00:00</td><td>华东战区</td><td>盒马</td><td>南通盒马鲜生宝声店</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">47</td><td style="text-align:right;font-variant-numeric:tabular-nums;">371</td></tr><tr><td>2026-02-11 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马鲜生三林店</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">108</td><td style="text-align:right;font-variant-numeric:tabular-nums;">378</td></tr><tr><td>2026-02-11 00:00:00</td><td>华南战区</td><td>永辉</td><td>厦门永辉超市(湖里店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">30</td><td style="text-align:right;font-variant-numeric:tabular-nums;">237</td></tr><tr><td>2026-02-11 00:00:00</td><td>华东战区</td><td>大润发</td><td>大润发(上海闸北店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">103</td><td style="text-align:right;font-variant-numeric:tabular-nums;">360</td></tr><tr><td>2026-02-12 00:00:00</td><td>华北战区</td><td>永辉</td><td>天津永辉超市(南开店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">79</td><td style="text-align:right;font-variant-numeric:tabular-nums;">624</td></tr><tr><td>2026-02-12 00:00:00</td><td>华中战区</td><td>华润</td><td>华润万家(武汉武昌店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">70</td><td style="text-align:right;font-variant-numeric:tabular-nums;">553</td></tr><tr><td>2026-02-13 00:00:00</td><td>华东战区</td><td>永辉</td><td>南京永辉超市(建邺店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">58</td><td style="text-align:right;font-variant-numeric:tabular-nums;">458</td></tr><tr><td>2026-02-13 00:00:00</td><td>华中战区</td><td>大润发</td><td>大润发(武汉江汉店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">30</td><td style="text-align:right;font-variant-numeric:tabular-nums;">237</td></tr><tr><td>2026-02-13 00:00:00</td><td>西北战区</td><td>华润</td><td>华润万家(西安雁塔店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">61</td><td style="text-align:right;font-variant-numeric:tabular-nums;">482</td></tr><tr><td>2026-02-14 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海超盒算NB浦东新德西路店</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">75</td><td style="text-align:right;font-variant-numeric:tabular-nums;">262</td></tr><tr><td>2026-02-14 00:00:00</td><td>华东战区</td><td>大润发</td><td>大润发(上海闸北店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">115</td><td style="text-align:right;font-variant-numeric:tabular-nums;">402</td></tr><tr><td>2026-02-15 00:00:00</td><td>西北战区</td><td>华润</td><td>华润万家(西安碑林店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">25</td><td style="text-align:right;font-variant-numeric:tabular-nums;">198</td></tr><tr><td>2026-02-16 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马鲜生曹家渡店</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">82</td><td style="text-align:right;font-variant-numeric:tabular-nums;">287</td></tr><tr><td>2026-02-16 00:00:00</td><td>华东战区</td><td>大润发</td><td>大润发(苏州园区店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">55</td><td style="text-align:right;font-variant-numeric:tabular-nums;">434</td></tr><tr><td>2026-02-17 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马美兰湖店</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">22</td><td style="text-align:right;font-variant-numeric:tabular-nums;">174</td></tr><tr><td>2026-02-17 00:00:00</td><td>华南战区</td><td>华润</td><td>华润万家(广州越秀店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">38</td><td style="text-align:right;font-variant-numeric:tabular-nums;">300</td></tr><tr><td>2026-02-18 00:00:00</td><td>华东战区</td><td>盒马</td><td>南通盒马鲜生宝声店</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">52</td><td style="text-align:right;font-variant-numeric:tabular-nums;">411</td></tr><tr><td>2026-02-18 00:00:00</td><td>华南战区</td><td>沃尔玛</td><td>沃尔玛(深圳香蜜湖店)</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">126</td><td style="text-align:right;font-variant-numeric:tabular-nums;">340</td></tr><tr><td>2026-02-19 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马鲜生新业坊店</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">27</td><td style="text-align:right;font-variant-numeric:tabular-nums;">213</td></tr><tr><td>2026-02-20 00:00:00</td><td>华中战区</td><td>沃尔玛</td><td>沃尔玛(武汉光谷店)</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">53</td><td style="text-align:right;font-variant-numeric:tabular-nums;">143</td></tr><tr><td>2026-02-21 00:00:00</td><td>华东战区</td><td>永辉</td><td>上海永辉超市(闵行店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">59</td><td style="text-align:right;font-variant-numeric:tabular-nums;">206</td></tr><tr><td>2026-02-22 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马mini川沙店</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">42</td><td style="text-align:right;font-variant-numeric:tabular-nums;">147</td></tr><tr><td>2026-02-22 00:00:00</td><td>华东战区</td><td>永辉</td><td>杭州永辉超市(滨江店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">19</td><td style="text-align:right;font-variant-numeric:tabular-nums;">150</td></tr><tr><td>2026-02-22 00:00:00</td><td>华北战区</td><td>大润发</td><td>大润发(北京丰台店)</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">145</td><td style="text-align:right;font-variant-numeric:tabular-nums;">392</td></tr><tr><td>2026-02-23 00:00:00</td><td>华东战区</td><td>永辉</td><td>南京永辉超市(建邺店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">73</td><td style="text-align:right;font-variant-numeric:tabular-nums;">577</td></tr><tr><td>2026-02-23 00:00:00</td><td>华中战区</td><td>华润</td><td>华润万家(武汉武昌店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">107</td><td style="text-align:right;font-variant-numeric:tabular-nums;">374</td></tr><tr><td>2026-02-24 00:00:00</td><td>华中战区</td><td>沃尔玛</td><td>沃尔玛(武汉光谷店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">68</td><td style="text-align:right;font-variant-numeric:tabular-nums;">238</td></tr><tr><td>2026-02-24 00:00:00</td><td>西北战区</td><td>华润</td><td>华润万家(西安雁塔店)</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">149</td><td style="text-align:right;font-variant-numeric:tabular-nums;">402</td></tr><tr><td>2026-02-26 00:00:00</td><td>华南战区</td><td>永辉</td><td>福州永辉超市(五四北店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">23</td><td style="text-align:right;font-variant-numeric:tabular-nums;">182</td></tr><tr><td>2026-02-26 00:00:00</td><td>华南战区</td><td>华润</td><td>华润万家(深圳华强北店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">48</td><td style="text-align:right;font-variant-numeric:tabular-nums;">379</td></tr><tr><td>2026-02-27 00:00:00</td><td>华中战区</td><td>华润</td><td>华润万家(武汉武昌店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">24</td><td style="text-align:right;font-variant-numeric:tabular-nums;">190</td></tr><tr><td>2026-03-01 00:00:00</td><td>华南战区</td><td>永辉</td><td>福州永辉超市(金山店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">59</td><td style="text-align:right;font-variant-numeric:tabular-nums;">206</td></tr><tr><td>2026-03-02 00:00:00</td><td>华东战区</td><td>盒马</td><td>上海盒马鲜生新业坊店</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">107</td><td style="text-align:right;font-variant-numeric:tabular-nums;">374</td></tr><tr><td>2026-03-03 00:00:00</td><td>华北战区</td><td>大润发</td><td>大润发(天津河西店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">15</td><td style="text-align:right;font-variant-numeric:tabular-nums;">118</td></tr><tr><td>2026-03-03 00:00:00</td><td>华东战区</td><td>沃尔玛</td><td>沃尔玛(南京新街口店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">44</td><td style="text-align:right;font-variant-numeric:tabular-nums;">154</td></tr><tr><td>2026-03-04 00:00:00</td><td>华东战区</td><td>永辉</td><td>杭州永辉超市(滨江店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">20</td><td style="text-align:right;font-variant-numeric:tabular-nums;">158</td></tr><tr><td>2026-03-04 00:00:00</td><td>华北战区</td><td>沃尔玛</td><td>沃尔玛(北京海淀店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">48</td><td style="text-align:right;font-variant-numeric:tabular-nums;">379</td></tr><tr><td>2026-03-04 00:00:00</td><td>西北战区</td><td>华润</td><td>华润万家(西安雁塔店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">80</td><td style="text-align:right;font-variant-numeric:tabular-nums;">632</td></tr><tr><td>2026-03-05 00:00:00</td><td>华东战区</td><td>盒马</td><td>南通盒马鲜生吾悦广场店</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">73</td><td style="text-align:right;font-variant-numeric:tabular-nums;">256</td></tr><tr><td>2026-03-06 00:00:00</td><td>华东战区</td><td>永辉</td><td>杭州永辉超市(滨江店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">79</td><td style="text-align:right;font-variant-numeric:tabular-nums;">624</td></tr><tr><td>2026-03-07 00:00:00</td><td>华北战区</td><td>大润发</td><td>大润发(北京丰台店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">31</td><td style="text-align:right;font-variant-numeric:tabular-nums;">245</td></tr><tr><td>2026-03-08 00:00:00</td><td>华东战区</td><td>永辉</td><td>杭州永辉超市(滨江店)</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">81</td><td style="text-align:right;font-variant-numeric:tabular-nums;">219</td></tr><tr><td>2026-03-08 00:00:00</td><td>华南战区</td><td>沃尔玛</td><td>沃尔玛(东莞南城店)</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">100</td><td style="text-align:right;font-variant-numeric:tabular-nums;">270</td></tr><tr><td>2026-03-08 00:00:00</td><td>华南战区</td><td>华润</td><td>华润万家(深圳南山店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">108</td><td style="text-align:right;font-variant-numeric:tabular-nums;">378</td></tr><tr><td>2026-03-09 00:00:00</td><td>华东战区</td><td>大润发</td><td>大润发(苏州园区店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">37</td><td style="text-align:right;font-variant-numeric:tabular-nums;">130</td></tr><tr><td>2026-03-09 00:00:00</td><td>华南战区</td><td>沃尔玛</td><td>沃尔玛(东莞南城店)</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">124</td><td style="text-align:right;font-variant-numeric:tabular-nums;">335</td></tr><tr><td>2026-03-10 00:00:00</td><td>华东战区</td><td>盒马</td><td>南京盒马鲜生湖南路店</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">38</td><td style="text-align:right;font-variant-numeric:tabular-nums;">300</td></tr><tr><td>2026-03-12 00:00:00</td><td>华北战区</td><td>永辉</td><td>北京永辉超市(朝阳店)</td><td>绿果</td><td>30#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">46</td><td style="text-align:right;font-variant-numeric:tabular-nums;">124</td></tr><tr><td>2026-03-12 00:00:00</td><td>华南战区</td><td>沃尔玛</td><td>沃尔玛(深圳香蜜湖店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">44</td><td style="text-align:right;font-variant-numeric:tabular-nums;">348</td></tr><tr><td>2026-03-13 00:00:00</td><td>华东战区</td><td>大润发</td><td>大润发(苏州园区店)</td><td>金果</td><td>22#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">43</td><td style="text-align:right;font-variant-numeric:tabular-nums;">340</td></tr><tr><td>2026-03-14 00:00:00</td><td>华南战区</td><td>沃尔玛</td><td>沃尔玛(广州天河店)</td><td>金果</td><td>25#</td><td style="text-align:right;font-variant-numeric:tabular-nums;">58</td><td style="text-align:right;font-variant-numeric:tabular-nums;">203</td></tr></tbody></table></div>
+      <div class="map-note">数据口径：商超云POS（消费者购买）· 单位「粒」；与 NKA-BI「销售明细」的 Sell-Out（ERP 出货、单位「件」）口径区分。数据源：五系统POS模拟销量.xlsx。</div>
+    </div>
+  </section>
+</main>
+
+<!-- Chat Bot -->
+<div class="toast" id="toast"></div>
+
+<!-- 任务下发弹窗：支持修改 + 选择发起人/执行人 -->
+<div id="taskMask" style="display:none;position:fixed;inset:0;background:rgba(20,28,45,.45);z-index:98;" onclick="closeTask()"></div>
+<div id="taskModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(440px,92vw);background:#fff;border-radius:14px;z-index:99;box-shadow:0 18px 50px rgba(20,28,45,.25);overflow:hidden;">
+  <div style="padding:16px 20px 12px;border-bottom:1px solid #e8edf5;display:flex;justify-content:space-between;align-items:center;">
+    <div><div style="font-size:15px;font-weight:700;color:#1a2233;" id="tkTitle">下发任务</div><div style="font-size:11px;color:#7a8699;margin-top:2px;">当前范围任务草稿，可修改；仅保存本浏览器</div></div>
+    <span onclick="closeTask()" style="cursor:pointer;color:#98a4b8;font-size:18px;line-height:1;">✕</span>
+  </div>
+  <div style="padding:14px 20px;display:grid;gap:12px;font-size:12.5px;">
+    <label style="display:grid;gap:4px;"><span style="color:#55617a;">任务名称</span><input id="tkName" style="border:1px solid #dbe3f0;border-radius:8px;padding:8px 10px;font-size:12.5px;"></label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <label style="display:grid;gap:4px;"><span style="color:#55617a;">发起人</span><select id="tkFrom" style="border:1px solid #dbe3f0;border-radius:8px;padding:8px 10px;font-size:12.5px;"><option>销售运营 · Clara（我）</option><option>PMO · 周总监</option><option>KA 负责人 · 陈经理</option></select></label>
+      <label style="display:grid;gap:4px;"><span style="color:#55617a;">执行人</span><select id="tkTo" style="border:1px solid #dbe3f0;border-radius:8px;padding:8px 10px;font-size:12.5px;"><option>华东督导 · 张伟</option><option>华东督导 · 李倩</option><option>华南督导 · 刘洋</option><option>华北督导 · 赵磊</option><option>供应链 · 王敏</option><option>批发项目组 · 孙工</option></select></label>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <label style="display:grid;gap:4px;"><span style="color:#55617a;">截止日期</span><input id="tkDue" type="date" style="border:1px solid #dbe3f0;border-radius:8px;padding:8px 10px;font-size:12.5px;"></label>
+      <label style="display:grid;gap:4px;"><span style="color:#55617a;">优先级</span><select id="tkPrio" style="border:1px solid #dbe3f0;border-radius:8px;padding:8px 10px;font-size:12.5px;"><option>高（今日内）</option><option selected>中（本周内）</option><option>低（两周内）</option></select></label>
+    </div>
+    <label style="display:grid;gap:4px;"><span style="color:#55617a;">执行说明（可修改）</span><textarea id="tkNote" rows="3" style="border:1px solid #dbe3f0;border-radius:8px;padding:8px 10px;font-size:12.5px;resize:vertical;"></textarea></label>
+    <div style="font-size:11px;color:#7a8699;background:#f5f8ff;border-radius:8px;padding:8px 10px;">演示流程：草稿 → 审核 → 执行反馈 → 复盘；未接入真实SFA / 财务，不实际下发。</div>
+  </div>
+  <div style="padding:12px 20px 16px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #e8edf5;">
+    <button onclick="closeTask()" style="border:1px solid #dbe3f0;background:#fff;color:#55617a;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;">取消</button>
+    <button onclick="submitTask()" style="border:none;background:linear-gradient(135deg,#2f6bff,#7a5cff);color:#fff;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;">提交任务草稿</button>
+  </div>
+</div>
+<button class="chat-toggle" onclick="document.getElementById('chatPanel').classList.toggle('open')">✦</button>
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-head"><b>✦ 智析助手</b><span onclick="document.getElementById('chatPanel').classList.remove('open')">✕</span></div>
+  <div class="chat-body"></div>
+  <div class="chat-input">
+    <input id="chatInput" placeholder="输入你的问题，或试试「胖东来本月达成率」">
+    <button id="chatSend">↑</button>
+  </div>
+</div>
+
+<script src="demo-data/kiwi-bi-monthly.js"></script>
+<script src="bi-model.js"></script>
+<script src="app.js?v=20261017e"></script>
+<script src="enhancements.js?v=20261017e"></script>
+<script src="cockpit.js?v=20261018b"></script>
+<link rel="stylesheet" href="bi-integration.css">
+<script src="bi-integration.js"></script>
+</body>
+</html>

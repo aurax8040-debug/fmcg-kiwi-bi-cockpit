@@ -1,0 +1,4 @@
+.bi-extra-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;padding:10px 12px;background:#fff;border:1px solid #e4eaf5;border-radius:9px}
+.bi-extra-filters select{max-width:260px;min-width:108px}.bi-extra-filters #fStore{max-width:250px}.bi-extra-filters #fSku{max-width:290px}
+.map-totals{flex-wrap:wrap}.map-totals .region-tile{min-width:80px}.top-actions{flex-wrap:wrap}.priority-customer .body{font-size:12px;line-height:1.7}
+@media(max-width:820px){.bi-extra-filters select{max-width:100%;flex:1 1 140px}.bi-extra-filters .action{flex:1}.cockpit-kpi .number{font-size:22px}}
