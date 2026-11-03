@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
-"""取回 Dify 历史运行记录并正确校验引用（修复版）。
+"""Validate an existing saved review without calling any model.
 
-修复点：旧诊断脚本用 `evidence.get("evidence", [])` 取证据数组，但服务端
-成功响应的证据是顶层字段 `evidence`（对象数组，元素含 .id），没有嵌套。
-取错层级会得到空数组，导致 normalizeWorkflow 把所有引用判为「未知证据」，
-错误地显示成「模型输出结构不完整」。
-
-本脚本的正确做法：
-1. 从 /api/ai/review 取回的完整响应里，`evidence` 就是证据数组本体；
-2. 把它原样传给 normalizeWorkflow(analysis, evidence)，不要 .get("evidence")。
+Backend answer records use validateAnswer; raw Dify analysis records use
+normalizeWorkflow. Evidence is read from the backend response or the original
+Dify evidence_json envelope. Source records are never rewritten.
 """
 import argparse
 import json
-import os
 import re
 import subprocess
 from pathlib import Path
@@ -40,32 +34,53 @@ def main():
     # 1. 找到历史结果文件
     record = args.record
     if record is None:
-        candidates = sorted(ROOT.glob('.ai-verification-*.json'))
+        candidates = list(ROOT.glob('.ai-verification-*.json'))
         if not candidates:
-            raise SystemExit('未找到 .ai-verification-*.json，请先用 --verify-ai 生成一次，或用 --record 指定文件')
-        record = candidates[-1]
+            raise SystemExit('未找到历史结果文件；请用 --record 指定已有的完整结果，不必重新调用模型')
+        record = max(candidates, key=lambda p: p.stat().st_mtime_ns)
 
     data = json.loads(record.read_text())
-    analysis = data.get('answer') or data.get('outputs', {}).get('analysis') or data.get('analysis')
-    # 2. 关键修复：evidence 就是响应顶层字段，本身就是对象数组，不要 .get("evidence")
-    evidence = data.get('evidence', [])
-
-    if not analysis:
-        raise SystemExit('记录里没有 analysis/answer 字段')
+    if not isinstance(data, dict):
+        raise SystemExit('记录必须是JSON对象')
+    if 'answer' in data:
+        kind, analysis = 'normalized', data['answer']
+    else:
+        outputs = data.get('outputs')
+        analysis = outputs.get('analysis') if isinstance(outputs, dict) else None
+        if analysis is None:
+            analysis = data.get('analysis')
+        kind = 'workflow'
+    inputs = data.get('inputs') or {}
+    if isinstance(inputs, str):
+        inputs = json.loads(inputs)
+    envelope = inputs.get('evidence_json') or {} if isinstance(inputs, dict) else {}
+    if isinstance(envelope, str):
+        envelope = json.loads(envelope)
+    evidence = data.get('evidence')
+    if evidence is None and isinstance(envelope, dict):
+        evidence = envelope.get('evidence')
+    if not isinstance(evidence, list) or not evidence or any(not isinstance(e, dict) or not isinstance(e.get('id'), str) for e in evidence):
+        raise SystemExit('记录缺少有效证据数组；请指定包含证据的完整历史结果')
+    if analysis is None:
+        raise SystemExit('记录里没有有效的 analysis/answer 字段')
+    rag = data.get('rag') or {}
+    rag_status = rag.get('status') if isinstance(rag, dict) else None
+    rag_status = rag_status or data.get('rag_status') or (envelope.get('rag_status') if isinstance(envelope, dict) else None) or '未记录'
 
     js = r'''
 import { readFileSync } from 'node:fs';
 const raw = readFileSync(0, 'utf8');
 const p = JSON.parse(raw);
-const { normalizeWorkflow } = await import('./server/ai.mjs');
+const { normalizeWorkflow, validateAnswer } = await import('./server/ai.mjs');
 try {
-  normalizeWorkflow(p.analysis, p.evidence);
+  const out = p.kind === 'normalized'
+    ? validateAnswer(p.analysis, p.evidence)
+    : normalizeWorkflow(p.analysis, p.evidence);
   console.log('引用校验通过');
-  // 只读原始 analysis 的 7 字段做展示，不与归一化结果混用。
-  console.log('摘要：' + (p.analysis.management_summary?.title || '') + '：' + (p.analysis.management_summary?.conclusion || ''));
-  console.log('事实条数：' + (Array.isArray(p.analysis.facts) ? p.analysis.facts.length : 0));
-  console.log('假设条数：' + (Array.isArray(p.analysis.hypotheses) ? p.analysis.hypotheses.length : 0));
-  console.log('建议条数：' + (Array.isArray(p.analysis.recommended_checks) ? p.analysis.recommended_checks.length : 0));
+  console.log('摘要：' + out.summary);
+  console.log('事实条数：' + out.facts.length);
+  console.log('假设条数：' + out.hypotheses.length);
+  console.log('建议条数：' + out.actions.length);
 } catch (e) {
   console.log('具体原因：' + e.message);
   process.exit(1);
@@ -74,7 +89,7 @@ try {
     check = subprocess.run(
         ['node', '--input-type=module', '-e', js],
         cwd=ROOT,
-        input=json.dumps({'analysis': analysis, 'evidence': evidence}),
+        input=json.dumps({'kind': kind, 'analysis': analysis, 'evidence': evidence}),
         text=True,
         capture_output=True,
     )
@@ -84,7 +99,7 @@ try {
             message = message.replace(env[name], '[已隐藏]')
     message = re.sub(r'sk-[A-Za-z0-9_-]+', '[已隐藏]', message)
     print(message[:2500])
-    print('知识检索状态：', data.get('rag', {}).get('status', '未记录'))
+    print('知识检索状态：', rag_status)
     print('本次没有新增模型调用。')
     # 校验失败时返回非零退出码，供调用方感知失败。
     if check.returncode != 0:
