@@ -13,10 +13,15 @@ export function normalizeWorkflow(value,evidence){
  if(a.citations.some(id=>!ids.has(id)))throw fail('INVALID_AI_OUTPUT','工作流引用未知证据');
  const rows=k=>a[k].map(row=>{if(!row||typeof row.text!=='string'||!Array.isArray(row.citations)||!row.citations.length||row.citations.some(id=>!ids.has(id)||!a.citations.includes(id)))throw fail('INVALID_AI_OUTPUT','工作流条目引用无效');return {text:row.text,evidenceIds:row.citations};});
  const gaps=rows('data_gaps');
- // 容错：DeepSeek 偶发把 boundaries 输出成 {text,citations} 对象数组，统一取 text 归一为字符串。
- const boundaries=a.boundaries.map(x=>{if(typeof x==='string')return x;if(x&&typeof x.text==='string')return x.text;throw fail('INVALID_AI_OUTPUT','工作流boundaries必须是字符串数组');});
+ // 容错：DeepSeek 偶发把 boundaries 输出成 {text,citations} 对象数组。
+ // 必须先校验对象形式的引用（未知引用仍要拒绝），再转换为字符串，不能丢弃引用只取文本。
+ const boundaries=a.boundaries.map(x=>{
+  if(typeof x==='string')return x;
+  if(x&&typeof x.text==='string'&&Array.isArray(x.citations)&&x.citations.length&&x.citations.every(id=>ids.has(id)&&a.citations.includes(id)))return x.text;
+  throw fail('INVALID_AI_OUTPUT','工作流boundaries必须是字符串数组，且引用必须有效');
+ });
  const summary=a.management_summary;if(!summary||typeof summary.title!=='string'||typeof summary.conclusion!=='string')throw fail('INVALID_AI_OUTPUT','工作流摘要结构无效');
- return validateAnswer({summary:summary.title+'：'+summary.conclusion,facts:rows('facts'),hypotheses:rows('hypotheses'),actions:rows('recommended_checks'),limits:[...boundaries,...gaps.map(x=>'证据缺口：'+x.text)].slice(0,6)},evidence);
+ return validateAnswer({summary:summary.title+'：'+summary.conclusion,facts:rows('facts'),hypotheses:rows('hypotheses'),actions:rows('recommended_checks'),limits:[...boundaries,...gaps.map(x=>'证据缺口：'+x.text)]},evidence);
 }
 export function evidenceFor(r){
  const id=r.scope.store_id+':'+r.scope.activity_id;
@@ -29,14 +34,15 @@ export function evidenceFor(r){
 export function validateAnswer(a,evidence){
  if(!a||typeof a.summary!=='string'||!a.summary.trim()||a.summary.length>2000)throw fail('INVALID_AI_OUTPUT','模型摘要格式无效');
  const lookup=new Map(evidence.map(e=>[e.id,e]));
- // 超限不拒绝，截断到前6条：AI 多给研判不丢确定性指标，精炼展示是受控约束而非脏数据。
  for(const name of ['facts','hypotheses','actions','limits'])if(!Array.isArray(a[name]))throw fail('INVALID_AI_OUTPUT','模型输出结构不完整');
- for(const name of ['facts','hypotheses','actions','limits'])if(a[name].length>6)a[name]=a[name].slice(0,6);
+ // 先对全量条目做校验（错误引用、知识条款单证经营事实都必须被拦截），全部通过后再截断展示。
  for(const name of ['facts','hypotheses','actions'])for(const row of a[name]){
   if(typeof row.text!=='string'||row.text.length>1200||!Array.isArray(row.evidenceIds)||!row.evidenceIds.length||row.evidenceIds.some(id=>!lookup.has(id)))throw fail('INVALID_AI_OUTPUT','模型引用未通过证据校验');
   if(name==='facts'&&!row.evidenceIds.some(id=>lookup.get(id).type==='business'))throw fail('INVALID_AI_OUTPUT','知识条款不能单独作为本店经营事实证据');
  }
  if(a.limits.some(v=>typeof v!=='string'||v.length>1200))throw fail('INVALID_AI_OUTPUT','模型边界格式无效');
+ // 全部校验通过后，才截断到前6条（精炼展示是受控约束，不掩盖任何已校验问题）。
+ for(const name of ['facts','hypotheses','actions','limits'])if(a[name].length>6)a[name]=a[name].slice(0,6);
  return a;
 }
 async function upstreamJSON(fetchImpl,url,key,body,provider,timeout){

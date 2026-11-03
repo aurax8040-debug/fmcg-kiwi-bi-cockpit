@@ -54,15 +54,18 @@ def main():
         raise SystemExit('记录里没有 analysis/answer 字段')
 
     js = r'''
-const p = JSON.parse(text);
-const normalize = (await import('./server/ai.mjs')).normalizeWorkflow;
+import { readFileSync } from 'node:fs';
+const raw = readFileSync(0, 'utf8');
+const p = JSON.parse(raw);
+const { normalizeWorkflow } = await import('./server/ai.mjs');
 try {
-  const out = normalize(p.analysis, p.evidence);
+  normalizeWorkflow(p.analysis, p.evidence);
   console.log('引用校验通过');
-  console.log('摘要：' + out.summary);
-  console.log('事实条数：' + out.facts.length);
-  console.log('假设条数：' + out.hypotheses.length);
-  console.log('建议条数：' + out.actions.length);
+  // 只读原始 analysis 的 7 字段做展示，不与归一化结果混用。
+  console.log('摘要：' + (p.analysis.management_summary?.title || '') + '：' + (p.analysis.management_summary?.conclusion || ''));
+  console.log('事实条数：' + (Array.isArray(p.analysis.facts) ? p.analysis.facts.length : 0));
+  console.log('假设条数：' + (Array.isArray(p.analysis.hypotheses) ? p.analysis.hypotheses.length : 0));
+  console.log('建议条数：' + (Array.isArray(p.analysis.recommended_checks) ? p.analysis.recommended_checks.length : 0));
 } catch (e) {
   console.log('具体原因：' + e.message);
   process.exit(1);
@@ -83,6 +86,9 @@ try {
     print(message[:2500])
     print('知识检索状态：', data.get('rag', {}).get('status', '未记录'))
     print('本次没有新增模型调用。')
+    # 校验失败时返回非零退出码，供调用方感知失败。
+    if check.returncode != 0:
+        raise SystemExit(check.returncode)
 
 
 if __name__ == '__main__':
