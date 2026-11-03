@@ -8,12 +8,26 @@ import shutil
 import subprocess
 import time
 import urllib.request
+import urllib.parse
+import urllib.error
 ROOT = Path(__file__).resolve().parents[1]
+
+def open_local(request, timeout):
+    url = request.full_url if isinstance(request, urllib.request.Request) else request
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != 'http' or parsed.hostname not in ('127.0.0.1', 'localhost'):
+        raise RuntimeError('启动检查仅允许本机HTTP地址')
+    # Local health checks must not be routed through macOS/system HTTP proxies.
+    return urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=timeout)
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--verify-ai', action='store_true', help='启动后进行1次真实模型复盘，可能消耗已有额度')
+    parser.add_argument('--check-only', action='store_true', help='仅启动并检查本机服务，不打开浏览器或调用模型')
     args = parser.parse_args()
+    if args.check_only and args.verify_ai:
+        raise RuntimeError('--check-only不能与--verify-ai同时使用')
     node = shutil.which('node')
     if not node:
         raise RuntimeError('未找到Node.js，需要Node.js 22以上')
@@ -32,18 +46,26 @@ def main():
     child = subprocess.Popen([node, 'server/start.mjs'], cwd=ROOT, env=env)
     try:
         ready = False
-        for _ in range(40):
+        last_problem = '尚未收到响应'
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
             if child.poll() is not None:
                 raise RuntimeError('服务启动失败，请看上方报错')
             try:
-                with urllib.request.urlopen(base + '/healthz', timeout=1) as response:
-                    ready = response.status == 200
+                with open_local(base + '/healthz', timeout=1) as response:
+                    ready = response.status == 200 and response.read(16) == b'ok'
+                    last_problem = '响应不是预期的健康检查结果'
                 if ready:
                     break
-            except Exception:
+            except Exception as e:
+                last_problem = 'HTTP ' + str(e.code) if isinstance(e, urllib.error.HTTPError) else type(e).__name__
                 time.sleep(.25)
         if not ready:
-            raise RuntimeError('服务启动超时')
+            raise RuntimeError('本机健康检查失败：' + last_problem + '；服务已停止，原配置保留')
+        print('本机健康检查通过：' + base + '/healthz', flush=True)
+        if args.check_only:
+            print('仅检查完成，未调用模型。', flush=True)
+            return
         subprocess.run(['open', '-a', 'Google Chrome', base + '/'], check=False)
         print('在Chrome进入「临促活动复盘」。保留此终端；Ctrl+C停止本次后端。', flush=True)
         if args.verify_ai:
@@ -58,7 +80,7 @@ def main():
                 headers['Authorization'] = 'Bearer ' + token
             request = urllib.request.Request(base + '/api/ai/review', headers=headers, data=json.dumps({'store_id': 'STORE004', 'activity_id': 'ACT-202610', 'question': '请复盘本店本次活动，区分事实、证据缺口、待验证假设与人工核查建议。'}).encode())
             try:
-                with urllib.request.urlopen(request, timeout=90) as response:
+                with open_local(request, timeout=90) as response:
                     result = json.load(response)
                 print('真实调用状态：', result.get('status'))
                 print('工作流运行ID：', result.get('ai', {}).get('request_id'))
@@ -69,7 +91,6 @@ def main():
                 config.private_write(target, json.dumps(result, ensure_ascii=False, indent=2))
                 print('真实复盘结果已仅保存在本机；页面再次点击会产生另一次调用。', flush=True)
             except Exception as e:
-                import urllib.error
                 if isinstance(e, urllib.error.HTTPError):
                     try:
                         body = json.load(e)

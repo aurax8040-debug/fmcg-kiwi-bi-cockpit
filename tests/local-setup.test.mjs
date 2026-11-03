@@ -27,3 +27,8 @@ test('Mac setup refuses mismatched workflow before changing any configuration',a
  await assert.rejects(()=>exec('python3',['scripts/connect-local-dify.py','--source',f.source,'--dataset-id',f.id],{cwd:f.project}),e=>!e.stdout.includes('test-app-secret')&&e.stdout.includes('工作流输入字段不匹配'));
  assert.equal(await readFile(join(f.project,'.env'),'utf8'),'PRESERVE_THIS=unchanged\n');assert.equal(await readFile(f.source,'utf8'),f.content);
 }finally{await f.close();}});
+test('startup health check reaches loopback directly with broken proxy configuration and makes no AI call',async()=>{
+ const cwd=new URL('../',import.meta.url);
+ const {stdout}=await exec('python3',['scripts/start-local-demo.py','--check-only'],{cwd,env:{...process.env,http_proxy:'http://127.0.0.1:1',HTTP_PROXY:'http://127.0.0.1:1',https_proxy:'http://127.0.0.1:1',HTTPS_PROXY:'http://127.0.0.1:1',all_proxy:'http://127.0.0.1:1',ALL_PROXY:'http://127.0.0.1:1',no_proxy:'',NO_PROXY:''},timeout:25000});
+ assert.match(stdout,/本机健康检查通过/);assert.match(stdout,/未调用模型/);assert.ok(!stdout.includes('开始一次真实复盘'));
+});
