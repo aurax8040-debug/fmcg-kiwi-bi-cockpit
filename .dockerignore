@@ -1,0 +1,6 @@
+.env
+.env.*
+.git
+.openai
+.preview
+node_modules
