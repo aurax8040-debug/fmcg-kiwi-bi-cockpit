@@ -8,14 +8,10 @@ function reviewEndpoint(path){
  throw Error('请先连接AI后端。GitHub Pages只托管页面，不能直接保管API密钥。');
 }
 function renderDashboardAI(){
- if(page!=='dash')return;
- const body=$('inlineChatBody');if(!body)return;
- const ready=reviewConnection?.configured;
- const message=!reviewConnection?'尚未检测到AI后端。请进入活动复盘检查连接；本机完整版需保持启动终端运行。':ready?'AI后端配置就绪。支持同店同活动复盘，点击生成后验证本次DeepSeek调用与知识检索。':'AI后端已响应，但服务端配置尚未齐全。请进入活动复盘查看缺项。';
- body.innerHTML='<div class="msg bot" role="status">'+esc(message)+'</div>';
- const quick=document.querySelector('.chat-inline-quick');if(quick){quick.innerHTML='<button class="action" id="dashboardOpenReview">进入AI活动复盘 →</button>'; $('dashboardOpenReview').onclick=()=>openPromoReview(promoActivity,promoStore);}
- const input=$('inlineChatInput');if(input){input.disabled=true;input.placeholder='当前支持活动复盘，请点击上方入口';}
- const error=reviewError;if(error){const note=document.createElement('div');note.className='hint';note.textContent=error;body.append(note);}
+ // 首页 AI 助手已由 assistant-ui.js 接管（对话式经营查询 + 活动复盘）。
+ // 活动复盘的连接状态与调用在「临促活动复盘」页（page-promo / renderReviewAI）展示。
+ // 这里不再向首页助手注入提示或禁用输入框，避免与 assistant-ui 的渲染相互覆盖。
+ return;
 }
 function reviewEvidenceHTML(e){return `<details class="promo-details"><summary>${esc(e.id)} · ${esc(e.source)}${e.type==='knowledge'?' · '+esc(e.document_name):''}</summary><pre class="review-pre">${esc(e.type==='knowledge'?e.content:JSON.stringify(e.value,null,2))}</pre></details>`;}
 function reviewAIHTML(r){const a=r.answer;return `<div class="hint">真实调用成功 · ${esc(r.ai.model||(r.ai.provider+' · 配置模型 '+r.ai.configured_model+'，未单独返回模型标识'))} · 请求ID ${esc(r.ai.request_id||'服务未返回')} · ${esc(r.generated_at)}<br>Dify：${r.rag.status==='RETRIEVED'?'检索到'+r.rag.citations.length+'条知识片段':r.rag.status==='NO_HITS'?'检索完成，未命中':'尚未连接知识库'} · Tokens ${r.ai.usage?.total_tokens??'未返回'} · 输出需人工核验</div><p>${esc(a.summary)}</p>${[['facts','已知事实'],['hypotheses','待验证假设'],['actions','建议核查动作']].map(([k,label])=>`<h4>${label}</h4>${a[k].map(v=>`<p>${esc(v.text)} <small>${v.evidenceIds.map(esc).join(' · ')}</small></p>`).join('')||'<p>本次未生成</p>'}`).join('')}<h4>判断边界</h4><ul>${a.limits.map(v=>`<li>${esc(v)}</li>`).join('')}</ul><details class="promo-details"><summary>核对实际返回的业务证据与Dify引用</summary>${r.evidence.map(reviewEvidenceHTML).join('')}</details><details class="promo-details"><summary>查看真实调用轨迹</summary><pre class="review-pre">${esc(JSON.stringify(r.trace,null,2))}</pre></details>`;}

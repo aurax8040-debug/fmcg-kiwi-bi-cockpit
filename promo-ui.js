@@ -71,9 +71,7 @@ render=function(){beforePromoRender();if(page==='promo')renderPromoReview();
  }
  if(page==='dash'){
   renderWeekendPromoCard();
-  const input=$('inlineChatInput');if(input){input.disabled=true;input.placeholder='请从活动复盘入口调用AI';}
-  document.querySelectorAll('.chat-inline-quick button,.chat-inline .chat-input button').forEach(b=>b.disabled=true);
-  const bot=$('inlineChatBody')?.querySelector('.msg.bot');if(bot)bot.textContent='POS、TPM、SFA模拟数据已关联。可从左侧“临促活动复盘”查询同店同活动证据，AI配置与本次调用状态请在活动复盘中查看。';
+  // 首页 AI 助手已由 assistant-ui.js 接管，不再禁用输入框或强制跳转活动复盘页。
  }
 };
 render();
