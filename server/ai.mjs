@@ -13,9 +13,10 @@ export function normalizeWorkflow(value,evidence){
  if(a.citations.some(id=>!ids.has(id)))throw fail('INVALID_AI_OUTPUT','工作流引用未知证据');
  const rows=k=>a[k].map(row=>{if(!row||typeof row.text!=='string'||!Array.isArray(row.citations)||!row.citations.length||row.citations.some(id=>!ids.has(id)||!a.citations.includes(id)))throw fail('INVALID_AI_OUTPUT','工作流条目引用无效');return {text:row.text,evidenceIds:row.citations};});
  const gaps=rows('data_gaps');
- if(a.boundaries.some(x=>typeof x!=='string'))throw fail('INVALID_AI_OUTPUT','工作流boundaries必须是字符串数组');
+ // 容错：DeepSeek 偶发把 boundaries 输出成 {text,citations} 对象数组，统一取 text 归一为字符串。
+ const boundaries=a.boundaries.map(x=>{if(typeof x==='string')return x;if(x&&typeof x.text==='string')return x.text;throw fail('INVALID_AI_OUTPUT','工作流boundaries必须是字符串数组');});
  const summary=a.management_summary;if(!summary||typeof summary.title!=='string'||typeof summary.conclusion!=='string')throw fail('INVALID_AI_OUTPUT','工作流摘要结构无效');
- return validateAnswer({summary:summary.title+'：'+summary.conclusion,facts:rows('facts'),hypotheses:rows('hypotheses'),actions:rows('recommended_checks'),limits:[...a.boundaries,...gaps.map(x=>'证据缺口：'+x.text)].slice(0,6)},evidence);
+ return validateAnswer({summary:summary.title+'：'+summary.conclusion,facts:rows('facts'),hypotheses:rows('hypotheses'),actions:rows('recommended_checks'),limits:[...boundaries,...gaps.map(x=>'证据缺口：'+x.text)].slice(0,6)},evidence);
 }
 export function evidenceFor(r){
  const id=r.scope.store_id+':'+r.scope.activity_id;
@@ -28,7 +29,9 @@ export function evidenceFor(r){
 export function validateAnswer(a,evidence){
  if(!a||typeof a.summary!=='string'||!a.summary.trim()||a.summary.length>2000)throw fail('INVALID_AI_OUTPUT','模型摘要格式无效');
  const lookup=new Map(evidence.map(e=>[e.id,e]));
- for(const name of ['facts','hypotheses','actions','limits'])if(!Array.isArray(a[name])||a[name].length>6)throw fail('INVALID_AI_OUTPUT','模型输出结构不完整');
+ // 超限不拒绝，截断到前6条：AI 多给研判不丢确定性指标，精炼展示是受控约束而非脏数据。
+ for(const name of ['facts','hypotheses','actions','limits'])if(!Array.isArray(a[name]))throw fail('INVALID_AI_OUTPUT','模型输出结构不完整');
+ for(const name of ['facts','hypotheses','actions','limits'])if(a[name].length>6)a[name]=a[name].slice(0,6);
  for(const name of ['facts','hypotheses','actions'])for(const row of a[name]){
   if(typeof row.text!=='string'||row.text.length>1200||!Array.isArray(row.evidenceIds)||!row.evidenceIds.length||row.evidenceIds.some(id=>!lookup.has(id)))throw fail('INVALID_AI_OUTPUT','模型引用未通过证据校验');
   if(name==='facts'&&!row.evidenceIds.some(id=>lookup.get(id).type==='business'))throw fail('INVALID_AI_OUTPUT','知识条款不能单独作为本店经营事实证据');
@@ -41,7 +44,7 @@ async function upstreamJSON(fetchImpl,url,key,body,provider,timeout){
  if(!response.ok)throw fail(provider+'_HTTP_'+response.status,provider+(response.status===401?'密钥无效':response.status===402?'额度不足':response.status===403?'无访问权限':response.status===429?'请求过于频繁':'调用失败')+'（HTTP '+response.status+'）');
  try{return await response.json();}catch{throw fail(provider+'_INVALID_RESPONSE',provider+'没有返回有效JSON');}
 }
-export function createAI({model,env={},fetchImpl=fetch,timeoutMs=55000}){
+export function createAI({model,env={},fetchImpl=fetch,timeoutMs=120000}){
  const counts=new Map();let active=0;
  function reserve(){const day=new Date().toISOString().slice(0,10),now=Date.now();for(const k of counts.keys())if(k!==day)counts.delete(k);const c=counts.get(day)||{total:0,recent:[]};c.recent=c.recent.filter(t=>now-t<60000);if(active>=2||c.recent.length>=3||c.total>=20)throw fail('RATE_LIMIT','本实例最多3次/分钟、20次/天，请稍后重试',429);c.total++;c.recent.push(now);counts.set(day,c);}
  return async function handle(request){
