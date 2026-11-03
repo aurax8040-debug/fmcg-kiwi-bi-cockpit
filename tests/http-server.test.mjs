@@ -4,7 +4,7 @@ import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 const root=new URL('../',import.meta.url);
 test('real HTTP gateway serves UI and API but denies source, secrets and foreign origins',async()=>{
- const child=spawn(process.execPath,['server/start.mjs'],{cwd:root,env:{...process.env,HOST:'127.0.0.1',PORT:'0',DEEPSEEK_API_KEY:'',DIFY_DATASET_API_KEY:'',DIFY_DATASET_ID:'',DEMO_ACCESS_TOKEN:''},stdio:['ignore','pipe','pipe']});
+ const child=spawn(process.execPath,['server/start.mjs'],{cwd:root,env:{...process.env,HOST:'127.0.0.1',PORT:'0',AI_MODE:'',DIFY_API_KEY:'',DIFY_BASE_URL:'',DEEPSEEK_API_KEY:'',DIFY_DATASET_API_KEY:'',DIFY_DATASET_ID:'',DEMO_ACCESS_TOKEN:''},stdio:['ignore','pipe','pipe']});
  try{
   const port=await new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()=>reject(Error('startup timed out')),10000);child.once('exit',code=>{clearTimeout(timer);reject(Error('server exited '+code));});child.stdout.on('data',buf=>{text+=buf;const m=text.match(/127\.0\.0\.1:(\d+)/);if(m){clearTimeout(timer);resolve(m[1]);}});});
   const base='http://127.0.0.1:'+port;

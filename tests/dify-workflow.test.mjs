@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
-import {createAI} from '../server/ai.mjs';
+import {createAI, normalizeWorkflow, validateAnswer} from '../server/ai.mjs';
 const sandbox={};vm.runInNewContext(await readFile(new URL('../demo-data/kiwi-promo-data.js',import.meta.url),'utf8'),sandbox);
 const model=createRequire(import.meta.url)('../promo-model.js').create(sandbox.KIWI_PROMO_DATA);
 const env={AI_MODE:'dify-workflow',DIFY_API_KEY:'test-workflow-secret',DIFY_BASE_URL:'http://localhost/v1'};
@@ -28,3 +28,7 @@ test('failed workflow and missing analysis are never converted to success',async
 });
 test('unknown nested legacy citations are rejected even when top-level citations are valid',async()=>{const a=legacy();a.data_gaps=[{text:'缺证据',citations:['invented']}];const app=createAI({model,env,fetchImpl:async()=>Response.json(workflow(a))});const r=await(await app(request())).json();assert.equal(r.code,'INVALID_AI_OUTPUT');assert.equal(r.answer,null);});
 test('workflow input stays below its observed max length and oversized questions do not trigger billing',async()=>{let calls=0;const app=createAI({model,env,fetchImpl:async()=>{calls++;return Response.json(workflow(legacy()));}});assert.equal((await app(request('问'.repeat(801)))).status,400);assert.equal(calls,0);assert.equal((await app(request('问'.repeat(800)))).status,200);});
+test('boundaries as {text,citations} objects and over-6 arrays are normalized instead of rejected',async()=>{const a=legacy();a.boundaries=[{text:'边界一',citations:[evidenceId]},{text:'边界二',citations:[evidenceId]}];const mk=n=>Array.from({length:n},(_,i)=>({text:'条'+i,citations:[evidenceId]}));a.facts=mk(8);a.data_gaps=mk(7);a.recommended_checks=mk(8);const app=createAI({model,env,fetchImpl:async()=>Response.json(workflow(a))});const r=await(await app(request())).json();assert.equal(r.status,'SUCCEEDED');assert.equal(r.answer.facts.length,6);assert.equal(r.answer.limits.length,6);});
+test('over-6 arrays are validated in full before truncation (7th-row bad citation still rejected)',()=>{const ev=[{id:evidenceId,type:'business'}];const a={summary:'s',facts:Array.from({length:7},(_,i)=>({text:'f'+i,evidenceIds:[i===6?'invented':evidenceId]})),hypotheses:[],actions:[],limits:[]};assert.throws(()=>validateAnswer(a,ev),/引用未通过证据校验/);});
+test('over-6 facts whose 7th row relies solely on knowledge are still rejected',()=>{const ev=[{id:evidenceId,type:'business'},{id:'KB:1',type:'knowledge'}];const a={summary:'s',facts:Array.from({length:7},(_,i)=>({text:'f'+i,evidenceIds:[i===6?'KB:1':evidenceId]})),hypotheses:[],actions:[],limits:[]};assert.throws(()=>validateAnswer(a,ev),/知识条款不能单独/);});
+test('boundaries object with unknown citation is rejected instead of silently dropped',()=>{const ev=[{id:evidenceId,type:'business'}];const a=legacy();a.boundaries=[{text:'边界',citations:['invented']}];assert.throws(()=>normalizeWorkflow(a,ev),/引用必须有效/);});
