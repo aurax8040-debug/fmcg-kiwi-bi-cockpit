@@ -6,7 +6,7 @@
 
 链路：store_id + activity_id → 服务端重新计算POS/TPM/SFA证据 → Dify已有知识库检索 → DeepSeek生成带引用的复盘 → 校验引用 → 人工审核。
 
-Dify在此承担已有经典知识库的RAG检索。此接口不会创建或修改知识库，也不会执行Dify Workflow；无命中原样显示，不编造条款。之前的工作流应用密钥不能替代知识库API密钥。
+默认rag-deepseek模式中，Dify承担已有经典知识库的RAG检索；新增dify-workflow模式复用原已发布流程，详见文末。本接口不会创建或修改知识库；无命中原样显示，不编造条款。工作流应用密钥不能替代知识库API密钥。
 
 ## 本机完整演示
 
@@ -56,3 +56,24 @@ GitHub Pages继续承载静态大盘；完整服务用`npm start`或所附Docker
 如果凭证保存在以前的Mac项目，让本机Codex执行以下任务即可，不需复制密钥到聊天：
 
 > 在现有fmcg-kiwi-bi-cockpit仓库切换main并拉取最新版本。保留用户改动。检查/Users/liuxiaohua/WorkBuddy/2026-10-12-11-47-53/fmcg-ai-analytics内已有Dify/DeepSeek配置，只报告变量名称及是否存在，绝不打印或提交密钥。把有效配置写入本仓库未跟踪的.env；Dify必须使用原知识库ID和知识库API密钥，不能用工作流应用密钥代替。运行npm test和npm start。先检查/api/ai/status，再对STORE004、ACT-202610执行一次真实复盘，核对DeepSeek响应ID、Dify文档/片段ID和界面结果；失败如实报告，禁止用预设文本替代。保留现有140家门店UI，不修改历史项目，不自行购买托管服务。
+
+## 复用已确认的本机Dify工作流（2026-11-03补充）
+
+用户本机API已确认应用为「快消智析·KA活动研判」，已发布流程的模型节点配置deepseek-flash；五个输入字段与原契约一致。该版本没有知识检索节点。配置存在不代表模型已真实调用成功。
+
+现在增加第二种运行模式`AI_MODE=dify-workflow`：由本机后端重新计算140店证据，再调用原工作流`/workflows/run`，复用Dify内已有模型配置，无需重新读取DeepSeek供应商密钥。旧`analysis`输出被转换为当前页面契约，并校验每一条引用。真实运行返回Dify工作流运行ID与tokens；若Dify没有返回具体模型标识，则只展示配置模型，不冒充拿到了模型响应ID。
+
+终端配置：
+
+```bash
+python3 scripts/connect-local-dify.py --dataset-id 26c98a30-ef16-45e4-84bc-a8da908a3c4a
+python3 scripts/start-local-demo.py --verify-ai
+```
+
+脚本读取已确认的旧项目`.env.demo`，通过GET验证应用和输入字段后，写入新版项目未跟踪的`.env`（权限600）。若新版已有配置，先在本机备份并保留其他变量。旧项目、Dify数据库和流程图不被修改。
+
+脚本可只读查找该知识库所在工作区的既有知识库API密钥，并通过该知识库GET接口验证访问。不创建密钥，不输出密钥，不修改密钥授权。找不到有效知识库密钥时保留`NOT_CONFIGURED`；可先验证工作流模型，但不会声称已完成RAG。若找到有效密钥，则先从Dify检索真实片段，再把片段与业务证据传给原工作流。
+
+`--verify-ai`会进行恰好一次真实工作流调用，可能消耗现有模型或检索额度，不自动重试；终端报告运行ID、tokens与RAG状态，完整结果仅写入本机被忽略的`.ai-verification-*.json`。页面再次点击生成属于另一次调用。
+
+本机服务独立使用8788端口，不停止原来的8787服务。Node.js要求22以上；脚本不会安装或购买服务。
