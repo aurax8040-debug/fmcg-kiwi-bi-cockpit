@@ -50,10 +50,11 @@
   ];
 
   // ---------- 渲染 ----------
+  // 快捷问题按钮：用 data-q 属性 + 事件委托绑定，避免内联 onclick 双引号嵌套失效。
   function renderQuick(){
     const el = $('assistantQuick');
     if (!el) return;
-    el.innerHTML = QUICK.map(x => `<button class="assistant-quick-btn" onclick="askInline(${JSON.stringify(x.q)})">${esc(x.q)}</button>`).join('');
+    el.innerHTML = QUICK.map((x, i) => `<button type="button" class="assistant-quick-btn" data-q-index="${i}">${esc(x.q)}</button>`).join('');
   }
 
   function renderWelcome(){
@@ -161,6 +162,7 @@
     if (!b) return;
     renderQuick();
     renderScope();
+    bindAssistantEvents();
     const msgs = state.messages.length ? state.messages.map(m => {
       if (m.role === 'user') return `<div class="msg user">${esc(m.text)}</div>`;
       return `<div class="msg bot assistant-answer">${m.html || ''}</div>`;
@@ -222,7 +224,8 @@
 
       let html = '';
       if (r.status === 'SUCCEEDED') {
-        if (r.kind === 'biz') html = bizHTML(r);
+        // 经营查询带 query:'data'（kind 可能被服务端覆盖为具体业务子类型，如 underperforming_stores/totals/store_detail/category_sku）
+        if (r.query === 'data' || r.kind === 'biz') html = bizHTML(r);
         else if (r.kind === 'review') html = reviewHTML(r);
         else if (r.kind === 'followup') html = followupHTML(r);
         else html = `<div class="ai-conclusion">${esc(r.summary || '已完成分析')}</div>`;
@@ -251,6 +254,43 @@
     save();
     render();
     if (typeof doAction === 'function') doAction('已开始新对话');
+  }
+
+  // 统一事件绑定：快捷问题、输入 Enter、箭头发送、新对话。
+  // 全部走 addEventListener + 事件委托，避免内联 onclick/onkeydown 的双引号嵌套失效，
+  // 也避免与 cockpit.js 旧内联属性重复触发。
+  function bindAssistantEvents(){
+    const quickEl = $('assistantQuick');
+    if (quickEl && !quickEl.dataset.bound) {
+      quickEl.dataset.bound = '1';
+      quickEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('.assistant-quick-btn');
+        if (!btn || state.busy) return;
+        const idx = Number(btn.dataset.qIndex);
+        const q = QUICK[idx]?.q;
+        if (q) askInline(q);
+      });
+    }
+    const inp = $('inlineChatInput');
+    if (inp && !inp.dataset.bound) {
+      inp.dataset.bound = '1';
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (!state.busy) askInline();
+        }
+      });
+    }
+    const sendBtn = $('inlineChatSend');
+    if (sendBtn && !sendBtn.dataset.bound) {
+      sendBtn.dataset.bound = '1';
+      sendBtn.addEventListener('click', () => { if (!state.busy) askInline(); });
+    }
+    const newBtn = $('assistantNewChat');
+    if (newBtn && !newBtn.dataset.bound) {
+      newBtn.dataset.bound = '1';
+      newBtn.addEventListener('click', assistantNewChat);
+    }
   }
 
   // 覆盖 cockpit.js 的全局函数（chat-inline 的 input/button 与 render 链都引用全局 askInline / renderDashboardChat）
@@ -299,6 +339,7 @@
   `;
   document.head.append(style);
 
-  // 首次渲染
+  // 首次渲染 + 绑定事件
+  bindAssistantEvents();
   render();
 })();
