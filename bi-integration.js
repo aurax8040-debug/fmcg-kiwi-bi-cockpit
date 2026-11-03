@@ -20,7 +20,7 @@ aggregate=function(){return kiwiModel.summarize(biFilters());};
 refreshKa=function(){if($('fMarket'))refreshBIFacets();};
 findings=function(){return {risk:view.ka.filter(c=>c.profit<0),display:[],inactive:view.stores-view.active};};
 interpretation=function(){return `<div class="body">${esc(view.label)}，销售额 ${wan(view.sales)}，模拟商品毛利 ${wan(view.profit)}，销售 ${view.te.toFixed(2)} TE。<br>全部为合成数据，毛利未扣活动费用、物流和税费。月度数据不支持日/周趋势、同比或促销因果判断。</div>`;};
-evidence=function(c){return `<div class="evidence">DEMO_MOCK · ${esc(c.name)} · 销售额 ${wan(c.sales)} · 商品毛利 ${wan(c.profit)}。SFA、TPM及知识检索证据尚未关联。</div>`;};
+evidence=function(c){return `<div class="evidence">DEMO_MOCK · ${esc(c.name)} · 销售额 ${wan(c.sales)} · 商品毛利 ${wan(c.profit)}。月度经营摘要；活动级TPM/SFA证据请查看“临促活动复盘”，知识检索待接入。</div>`;};
 cockpitRegionRows=function(){return view.regionRows.map(r=>({...r,name:r.key,covered:true}));};
 cockpitMap=function(){
   const locations={'华东':[121.47,31.23],'华南':[113.26,23.13],'华北':[116.4,39.9],'华中':[114.31,30.59],'西部':[104.07,30.67]};
@@ -42,7 +42,7 @@ function selectBIStore(id){$('fStore').value=id;biTablePage=0;navigate('store');
 function selectBICategory(name){$('fCategory').value=name;$('fSku').value='all';refreshBIFacets();biTablePage=0;navigate('store');}
 function selectBISku(id){$('fCategory').value=kiwiModel.skus.get(id).category;refreshBIFacets();$('fSku').value=id;biTablePage=0;navigate('store');}
 screenshotPriorityCard=function(){const low=view.storeRows.filter(s=>s.attainment!==null&&s.attainment<1).sort((a,b)=>a.attainment-b.attainment).slice(0,3);
-  return `<div class="card priority-card"><h3>重点门店 <span class="tag">预算差距 · 规则筛选</span></h3><div class="hint">按当前周期达成率排序。销售差距不能直接解释为执行问题。</div>${view.productFiltered?'<div class="body">商品筛选已生效。预算仅有门店月度粒度，暂不计算品类/SKU达成率。</div>':low.map(s=>`<article class="priority-customer"><b>${esc(s.store_name)}</b><div class="body">销售 ${wan(s.sales)} · 模拟预算 ${wan(s.target)}<br>达成率 ${(s.attainment*100).toFixed(1)}% · 差额 ${wan(s.target-s.sales)}</div><button class="action sec" onclick="selectBIStore('${s.store_id}')">查看门店 →</button></article>`).join('')||'<div class="body">当前范围没有低于模拟预算的门店。</div>'}<div class="map-note">SFA / TPM / Dify 尚未关联到这140家门店，不生成执行归因。</div></div>`;
+  return `<div class="card priority-card"><h3>重点门店 <span class="tag">预算差距 · 规则筛选</span></h3><div class="hint">按当前周期达成率排序。销售差距不能直接解释为执行问题。</div>${view.productFiltered?'<div class="body">商品筛选已生效。预算仅有门店月度粒度，暂不计算品类/SKU达成率。</div>':low.map(s=>`<article class="priority-customer"><b>${esc(s.store_name)}</b><div class="body">销售 ${wan(s.sales)} · 模拟预算 ${wan(s.target)}<br>达成率 ${(s.attainment*100).toFixed(1)}% · 差额 ${wan(s.target-s.sales)}</div><button class="action sec" onclick="selectBIStore('${s.store_id}')">查看门店 →</button></article>`).join('')||'<div class="body">当前范围没有低于模拟预算的门店。</div>'}<div class="map-note">POS / TPM / SFA 模拟记录已按门店关联，可进入临促活动复盘核对；Dify待接入，不生成执行归因。</div></div>`;
 };
 injectKaStoreCard=function(){const el=$('kaStoreSlot');if(!el)return;el.innerHTML='<h3>门店等级分布</h3>'+table(['等级','门店数'],['A','B','C'].map(g=>[g,view.selectedStores.filter(s=>s.store_grade===g).length]));};
 loadWeekendPromoReview=async function(){weekendPromoReview=null;weekendPromoLoading=false;renderWeekendPromoCard();};
@@ -107,5 +107,6 @@ biOptions('fGrade',['A','B','C'].map(n=>[n,n]),'全部等级');biOptions('fCateg
 refreshBIFacets();
 for(const id of ['fMarket','fGrade','fStore','fCategory','fSku'])$(id).addEventListener('change',()=>{refreshBIFacets();biTablePage=0;render();});
 for(const id of ['fRange','fRegion','fKa'])$(id).addEventListener('change',()=>{refreshBIFacets();biTablePage=0;},{capture:true});
+for(const id of ["fRange","fRegion","fKa"])$(id).addEventListener("change",()=>render());
 $('biReset').addEventListener('click',()=>{for(const id of ['fRange','fRegion','fKa','fMarket','fGrade','fStore','fCategory','fSku'])$(id).value='all';refreshBIFacets();biTablePage=0;render();});
 render();
