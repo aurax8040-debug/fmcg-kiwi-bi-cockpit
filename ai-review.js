@@ -35,7 +35,7 @@ async function runReviewAI(){
  const key=reviewKey(),store_id=promoStore,activity_id=promoActivity,question=$('reviewQuestion').value.trim();
  if(!question){reviewError='请填写复盘问题';renderReviewAI();return;}
  reviewBusy=true;reviewError='';renderReviewAI();
- try{const response=await fetch(reviewEndpoint('/api/ai/review'),{method:'POST',headers:{'Content-Type':'application/json',...(reviewAccess?{Authorization:'Bearer '+reviewAccess}:{})},body:JSON.stringify({store_id,activity_id,question}),signal:AbortSignal.timeout(90000)});const body=await response.json();if(!response.ok||body.status!=='SUCCEEDED')throw Error(body.error||'AI调用失败');if(body.scope?.store_id!==store_id||body.scope?.activity_id!==activity_id)throw Error('响应范围不一致，请重试');reviewAnswers.set(key,body);}
+ try{const response=await fetch(reviewEndpoint('/api/ai/review'),{method:'POST',headers:{'Content-Type':'application/json',...(reviewAccess?{Authorization:'Bearer '+reviewAccess}:{})},body:JSON.stringify({store_id,activity_id,question}),signal:AbortSignal.timeout(180000)});const body=await response.json();if(!response.ok||body.status!=='SUCCEEDED')throw Error(body.error||'AI调用失败');if(body.scope?.store_id!==store_id||body.scope?.activity_id!==activity_id)throw Error('响应范围不一致，请重试');reviewAnswers.set(key,body);}
  catch(e){reviewError='本次调用未完成：'+e.message+'。业务数据仍可正常查看。';}
  finally{reviewBusy=false;renderReviewAI();}
 }

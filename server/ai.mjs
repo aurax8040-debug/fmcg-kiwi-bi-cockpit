@@ -41,7 +41,7 @@ async function upstreamJSON(fetchImpl,url,key,body,provider,timeout){
  if(!response.ok)throw fail(provider+'_HTTP_'+response.status,provider+(response.status===401?'密钥无效':response.status===402?'额度不足':response.status===403?'无访问权限':response.status===429?'请求过于频繁':'调用失败')+'（HTTP '+response.status+'）');
  try{return await response.json();}catch{throw fail(provider+'_INVALID_RESPONSE',provider+'没有返回有效JSON');}
 }
-export function createAI({model,env={},fetchImpl=fetch,timeoutMs=55000}){
+export function createAI({model,env={},fetchImpl=fetch,timeoutMs=120000}){
  const counts=new Map();let active=0;
  function reserve(){const day=new Date().toISOString().slice(0,10),now=Date.now();for(const k of counts.keys())if(k!==day)counts.delete(k);const c=counts.get(day)||{total:0,recent:[]};c.recent=c.recent.filter(t=>now-t<60000);if(active>=2||c.recent.length>=3||c.total>=20)throw fail('RATE_LIMIT','本实例最多3次/分钟、20次/天，请稍后重试',429);c.total++;c.recent.push(now);counts.set(day,c);}
  return async function handle(request){

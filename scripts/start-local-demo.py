@@ -80,7 +80,7 @@ def main():
                 headers['Authorization'] = 'Bearer ' + token
             request = urllib.request.Request(base + '/api/ai/review', headers=headers, data=json.dumps({'store_id': 'STORE004', 'activity_id': 'ACT-202610', 'question': '请复盘本店本次活动，区分事实、证据缺口、待验证假设与人工核查建议。'}).encode())
             try:
-                with open_local(request, timeout=90) as response:
+                with open_local(request, timeout=210) as response:
                     result = json.load(response)
                 print('真实调用状态：', result.get('status'))
                 print('工作流运行ID：', result.get('ai', {}).get('request_id'))
