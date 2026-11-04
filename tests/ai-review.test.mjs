@@ -28,3 +28,30 @@ test('knowledge-only citation cannot prove actual store execution',async()=>{con
 test('DeepSeek upstream errors are visible and preserve real retrieval',async()=>{const app=createAI({model,env,fetchImpl:fakeFlow([],{dsStatus:402})});const response=await app(req());const r=await response.json();assert.equal(response.status,502);assert.equal(r.code,'DeepSeek_HTTP_402');assert.equal(r.ai.status,'FAILED');assert.equal(r.rag.status,'RETRIEVED');assert.equal(r.answer,null);});
 test('timeout cancels upstream and never retries silently',async()=>{let calls=0;const app=createAI({model,env,timeoutMs:5,fetchImpl:async(_url,opt)=>{calls++;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>resolve(ok({records:[]})),30);opt.signal.addEventListener('abort',()=>{clearTimeout(timer);reject(Error('timeout'));});});}});const r=await(await app(req())).json();assert.equal(r.rag.status,'FAILED');assert.equal(calls,1);assert.equal(r.answer,null);});
 test('instance rate limit bounds billable calls',async()=>{const log=[],app=createAI({model,env,fetchImpl:fakeFlow(log)});for(let i=0;i<3;i++)assert.equal((await app(req())).status,200);assert.equal((await app(req())).status,429);assert.equal(log.length,6);});
+
+// 失败阶段可区分：知识库检索失败（rag.status=FAILED，未调用模型） vs 工作流调用失败（modelAttempted=true）
+test('retrieve connection failure is distinguishable from workflow failure (rag failed, model not run)',async()=>{
+  const app=createAI({model,env,fetchImpl:async()=>{throw Error('ECONNREFUSED');}});
+  const r=await(await app(req())).json();
+  assert.equal(r.status,'FAILED');
+  assert.equal(r.code,'Dify_CONNECTION_ERROR');
+  assert.equal(r.rag.status,'FAILED');           // 检索阶段失败
+  assert.equal(r.ai.status,'NOT_RUN');           // 工作流/模型未执行
+  assert.equal(r.trace.at(-1).tool,'Dify.retrieve');
+  assert.ok(!JSON.stringify(r).includes('test-dify-secret'));
+});
+
+test('workflow run failure is distinguishable from retrieval failure (rag ok, workflow failed)',async()=>{
+  // 检索成功返回 records，但 workflow 返回 status!=succeeded
+  const wfEnv={...env,AI_MODE:'dify-workflow',DIFY_API_KEY:'test-workflow-secret'};
+  const app=createAI({model,env:wfEnv,fetchImpl:async(url)=>{
+    if(url.includes('/retrieve')) return ok({records:[{score:.9,segment:{id:'seg-1',document_id:'doc-1',document:{name:'规范'},content:'供人工核对。'}}]});
+    return ok({workflow_run_id:'wf-1',data:{id:'wf-1',status:'failed',outputs:{analysis:answer()}}});
+  }});
+  const r=await(await app(req())).json();
+  assert.equal(r.status,'FAILED');
+  assert.equal(r.code,'DIFY_WORKFLOW_FAILED');
+  assert.equal(r.rag.status,'RETRIEVED');        // 检索成功
+  assert.equal(r.ai.status,'FAILED');            // 工作流阶段失败
+  assert.equal(r.trace.at(-1).tool,'Dify.workflow');
+});

@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import vm from 'node:vm';
 import {createRequire} from 'node:module';
 import {createAI} from './ai.mjs';
+import {createAssistant} from './assistant.mjs';
 const root=resolve(fileURLToPath(new URL('../',import.meta.url)));
 // Node's env loader preserves variables already configured by the hosting service.
 try{process.loadEnvFile(resolve(root,'.env'));}catch(e){if(e.code!=='ENOENT')throw e;}
@@ -13,6 +14,7 @@ if(!['127.0.0.1','localhost','::1'].includes(host)&&!process.env.DEMO_ACCESS_TOK
 const sandbox={};vm.runInNewContext(await readFile(resolve(root,'demo-data/kiwi-promo-data.js'),'utf8'),sandbox);
 const require=createRequire(import.meta.url),model=require('../promo-model.js').create(sandbox.KIWI_PROMO_DATA);
 const ai=createAI({model,env:process.env});
+const assistant=createAssistant({model,env:process.env});
 const allowed=new Set((process.env.ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).filter(Boolean));
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8'};
 const server=createServer(async(req,res)=>{
@@ -30,7 +32,7 @@ const server=createServer(async(req,res)=>{
   if(path.startsWith('/api/')){
    let size=0;const chunks=[];for await(const chunk of req){size+=chunk.length;if(size>8000){res.writeHead(413,headers);res.end();return;}chunks.push(chunk);}
    const request=new Request('http://localhost'+req.url,{method:req.method,headers:req.headers,body:['GET','HEAD'].includes(req.method)?undefined:Buffer.concat(chunks)});
-   const response=await ai(request);res.writeHead(response.status,{...Object.fromEntries(response.headers),...headers});res.end(Buffer.from(await response.arrayBuffer()));return;
+   const response=await (request.url.includes('/api/ai/chat')?assistant(request):ai(request));res.writeHead(response.status,{...Object.fromEntries(response.headers),...headers});res.end(Buffer.from(await response.arrayBuffer()));return;
   }
   if(!['GET','HEAD'].includes(req.method)){res.writeHead(405,headers);res.end();return;}
   const parts=path.split('/');if(parts.some(x=>x.startsWith('.')||['server','tests','scripts','docs','node_modules'].includes(x))){res.writeHead(404,headers);res.end();return;}
