@@ -53,3 +53,22 @@ test('事件绑定函数在 render 后调用，且用 dataset.bound 防重复绑
   // render 内调用 bindAssistantEvents（DOM 被 cockpit 重建后可重新绑定）
   assert.match(assistantUi, /bindAssistantEvents\(\)/);
 });
+
+test('失败保留原始问题与门店/活动，并渲染手动重试按钮', () => {
+  // 失败时记录 lastFailed（question + store_id + activity_id），供重试复用同一 scope
+  assert.match(assistantUi, /state\.lastFailed = \{ question: v, store_id, activity_id \}/);
+  // 错误消息渲染重试按钮（data-retry）
+  assert.match(assistantUi, /assistant-retry-btn/);
+  assert.match(assistantUi, /data-retry="1"/);
+  // 重试按钮点击后用 lastFailed 重新 askInline，复用门店/活动
+  assert.match(assistantUi, /\.assistant-retry-btn/);
+  assert.match(assistantUi, /askInline\(f\.question, \{ store_id: f\.store_id, activity_id: f\.activity_id \}\)/);
+});
+
+test('错误提示区分知识库检索失败 vs 工作流调用失败', () => {
+  // 根据 rag.status / code 给出可操作提示，而非笼统的"服务异常"
+  assert.match(assistantUi, /知识库检索失败/);
+  assert.match(assistantUi, /工作流调用失败/);
+  assert.match(assistantUi, /r\.rag\?\.status === 'FAILED'/);
+  assert.match(assistantUi, /DifyWorkflow_CONNECTION_ERROR|DIFY_WORKFLOW_FAILED/);
+});

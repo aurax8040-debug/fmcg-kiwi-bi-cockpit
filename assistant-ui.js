@@ -153,8 +153,9 @@
     return body;
   }
 
-  function errorHTML(msg){
-    return `<div class="ai-kind error">本次未完成</div><div class="ai-conclusion">${esc(msg)}</div><div class="ai-note">可稍后重试，不会自动重复计费。</div>`;
+  function errorHTML(msg, retryable){
+    const retryBtn = retryable ? `<button type="button" class="assistant-retry-btn" data-retry="1">↻ 重试</button>` : '';
+    return `<div class="ai-kind error">本次未完成</div><div class="ai-conclusion">${esc(msg)}</div><div class="ai-note">可点击重试，不会自动重复计费。${retryBtn}</div>`;
   }
 
   function render(){
@@ -182,6 +183,15 @@
           const actName = btn.querySelector('span')?.textContent || activity_id;
           askInline(`复盘活动：${storeName} · ${actName}`, {store_id, activity_id});
         }
+      });
+    });
+    // 绑定重试按钮：复用上次失败时的原始问题与门店/活动
+    b.querySelectorAll('.assistant-retry-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (state.busy) return;
+        const f = state.lastFailed;
+        if (!f || !f.question) return;
+        askInline(f.question, { store_id: f.store_id, activity_id: f.activity_id });
       });
     });
     b.scrollTop = b.scrollHeight;
@@ -232,7 +242,13 @@
       } else if (r.status === 'NEEDS_CLARIFY') {
         html = clarifyHTML(r);
       } else {
-        html = errorHTML(r.error || '服务返回异常');
+        // 失败：保留原始问题与门店/活动，供手动重试（重试时复用同一 scope，不丢用户已选目标）
+        state.lastFailed = { question: v, store_id, activity_id };
+        // 区分失败阶段，给出可操作的提示（知识库检索失败 vs 工作流调用失败）
+        let errMsg = r.error || '服务返回异常';
+        if (r.rag?.status === 'FAILED' || r.code === 'Dify_CONNECTION_ERROR') errMsg = '知识库检索失败：' + errMsg;
+        else if (r.code === 'DifyWorkflow_CONNECTION_ERROR' || r.code === 'DIFY_WORKFLOW_FAILED') errMsg = '工作流调用失败：' + errMsg;
+        html = errorHTML(errMsg, true);
       }
       state.messages.push({role: 'bot', html, text: r.summary || r.error || ''});
       save();
@@ -240,7 +256,8 @@
       const loading = b.querySelector('[data-loading]');
       if (loading) loading.remove();
       const msg = e.name === 'TimeoutError' ? '请求超时，请稍后重试' : ('AI 暂时不可用：' + e.message);
-      state.messages.push({role: 'bot', html: errorHTML(msg), text: msg});
+      state.lastFailed = { question: v, store_id, activity_id };
+      state.messages.push({role: 'bot', html: errorHTML(msg, true), text: msg});
       save();
     } finally {
       state.busy = false;
@@ -308,6 +325,8 @@
   .assistant-quick-btn:hover{background:#e2ebff;}
   .assistant-toolbar{display:flex;justify-content:flex-end;margin-top:8px;}
   .assistant-new{font-size:11.5px;color:#7a8699;background:none;border:1px solid #e8edf5;border-radius:6px;padding:4px 10px;cursor:pointer;}
+  .assistant-retry-btn{display:inline-block;font-size:11.5px;color:#2f6bff;background:#eef3ff;border:1px solid #cfdcff;border-radius:6px;padding:3px 10px;margin-top:6px;cursor:pointer;}
+  .assistant-retry-btn:hover{background:#e2ebff;}
   .assistant-new:hover{color:#2f6bff;border-color:#cfdcff;}
   .assistant-answer .ai-kind{font-size:11px;display:inline-block;border-radius:4px;padding:1px 7px;margin-bottom:6px;}
   .assistant-answer .ai-kind.data{background:#e8f5e9;color:#2ba471;}
