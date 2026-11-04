@@ -4,6 +4,15 @@
 
 ## 启动
 
+### 启动顺序（重要）
+
+活动复盘依赖 Dify 工作流与知识库检索，而 Dify 跑在本机 Docker Desktop 里。请按以下顺序启动：
+
+1. **先启动 Docker Desktop**，并确认 Dify 服务已就绪（`http://127.0.0.1/v1` 可访问、`docker ps` 中 `api`/`worker`/`db` 容器为 `healthy`）。
+2. **再启动 8788 后端服务**（下方命令）。
+
+若先启动 8788 而后端启动时 Dify 尚未就绪，首页「活动复盘」会返回「Dify 连接失败或超时」。此时先确认 Docker Desktop 与 Dify 容器状态，再重试即可，无需改代码或密钥。
+
 Mac 双击根目录的 `start-demo.command`，或在本目录运行：
 
 ```bash
